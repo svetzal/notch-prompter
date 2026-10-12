@@ -22,8 +22,12 @@ final class AppModel {
         prompter.scriptTitle = library.selectedTitle
         library.onChange = { [weak prompter, weak library] in
             guard let prompter, let library else { return }
+            let switchedScript = prompter.scriptTitle != library.selectedTitle
             prompter.setDocument(library.document)
             prompter.scriptTitle = library.selectedTitle
+            if switchedScript {
+                prompter.rewindIfIdle()
+            }
         }
         prompter.recorder = capture
         capture.onRecordingEnded = { [weak prompter] in prompter?.recordingDidEnd() }

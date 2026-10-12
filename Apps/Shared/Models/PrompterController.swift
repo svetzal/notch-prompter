@@ -105,6 +105,13 @@ final class PrompterController {
         session.relayout(makeLayout(), at: .now)
     }
 
+    /// A different script starts from its top, unless a run is under way.
+    func rewindIfIdle() {
+        if session.canBegin {
+            session.rewindToStart(at: .now)
+        }
+    }
+
     private func makeLayout() -> PrompterLayout {
         let fontSize = settings.fontSize
         return PrompterLayout(document: document, width: settings.textWidth) {
