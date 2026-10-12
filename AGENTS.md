@@ -46,6 +46,22 @@ and the effects facts.
   Objective-C exception.
 - Do not add app-made effects (Vision, Core Image). The charter rules them out.
 
+## Video format: how a take gets its shape
+
+- The crop geometry (kept size, centring, even sizes, the preview's kept
+  region) is `VideoCrop` in the Kit. The gateways only apply it.
+- The primary path is the movie output's video settings: width, height,
+  and `AVVideoScalingModeResizeAspectFill`, set at the start of each take.
+  When no crop is needed, leave the connection at the session preset's own
+  settings. Do not rely on `AVVideoCleanApertureKey`; players and upload
+  services ignore it.
+- Keep the self-check after each take (`CaptureModel.confirmShape`): it
+  reads the movie's displayed size and re-crops by export when the shape is
+  wrong. Its log line says which path ran. Do not remove it until a live
+  take has shown the primary path works on every camera in use.
+- `centerStageRectOfInterest` is unavailable on macOS. Do not try to steer
+  Center Stage to the crop.
+
 ## Concurrency
 
 Swift 6 language mode with complete strict concurrency.
@@ -68,5 +84,5 @@ swift test && swiftlint lint --strict && xcodegen generate && \
 
 The gates cannot check the parts that need a camera, a microphone, or a
 notched screen: the panel flush with the top edge around the real notch,
-effects state, and an actual recording. After changing those paths, run the app and check them by
+effects state, an actual recording, and the shape of a vertical take. After changing those paths, run the app and check them by
 hand.

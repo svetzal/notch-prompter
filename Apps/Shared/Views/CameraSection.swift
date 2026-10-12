@@ -1,10 +1,12 @@
 import NotchPrompterKit
 import SwiftUI
 
-/// Permission notices, the preview, and the device pickers.
+/// Permission notices, the preview, the video format, and the device pickers.
 struct CameraSection: View {
 
     let capture: CaptureModel
+    /// A recorded take is under way, so its format holds still.
+    let isTakeInProgress: Bool
 
     var body: some View {
         Section("Camera") {
@@ -13,8 +15,22 @@ struct CameraSection: View {
             }
             if capture.access.canUseCamera {
                 CameraPreview(session: capture.gateway.session)
-                    .aspectRatio(16 / 9, contentMode: .fit)
+                    .overlay {
+                        if let crop = capture.previewCrop, crop.needsCrop {
+                            KeptRegionOverlay(keptRegion: crop.normalizedRect)
+                        }
+                    }
+                    .aspectRatio(previewAspectRatio, contentMode: .fit)
+                    .frame(maxWidth: .infinity, maxHeight: 360)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
+                Picker("Format", selection: formatSelection) {
+                    ForEach(VideoFormat.allCases) { format in
+                        Text(format.displayName).tag(format)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .disabled(isTakeInProgress || capture.isConfigurationLocked)
+                .help("The shape of the next take: Horizontal is 16:9, Vertical is 9:16, cut from the centre of the camera")
             }
             Picker("Camera", selection: cameraSelection) {
                 ForEach(capture.cameras) { camera in
@@ -42,6 +58,47 @@ struct CameraSection: View {
 
     private var microphoneSelection: Binding<String?> {
         Binding(get: { capture.activeMicrophoneID }, set: { capture.preferredMicrophoneID = $0 })
+    }
+
+    private var formatSelection: Binding<VideoFormat> {
+        Binding(get: { capture.videoFormat }, set: { capture.videoFormat = $0 })
+    }
+
+    /// The camera's own shape, so the whole frame shows; 16:9 until it is known.
+    private var previewAspectRatio: CGFloat {
+        guard let size = capture.cameraSize, size.width > 0, size.height > 0 else { return 16 / 9 }
+        return CGFloat(size.width) / CGFloat(size.height)
+    }
+}
+
+/// Dims the part of the camera's frame a take will not keep, and outlines
+/// the part it will, so the presenter can frame themself for the format.
+private struct KeptRegionOverlay: View {
+
+    /// The kept region as fractions of the frame, origin top left.
+    let keptRegion: CGRect
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = proxy.size
+            let kept = CGRect(
+                x: keptRegion.minX * size.width,
+                y: keptRegion.minY * size.height,
+                width: keptRegion.width * size.width,
+                height: keptRegion.height * size.height
+            )
+            ZStack {
+                Path { path in
+                    path.addRect(CGRect(origin: .zero, size: size))
+                    path.addRect(kept)
+                }
+                .fill(.black.opacity(0.6), style: FillStyle(eoFill: true))
+                Path { path in path.addRect(kept.insetBy(dx: 0.5, dy: 0.5)) }
+                    .stroke(.white.opacity(0.85), lineWidth: 1)
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

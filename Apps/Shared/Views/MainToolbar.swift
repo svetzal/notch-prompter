@@ -19,7 +19,7 @@ struct MainToolbar: CustomizableToolbarContent {
             RehearseButton(prompter: model.prompter)
         }
         ToolbarItem(id: "status", placement: .principal) {
-            TakeStatusView(prompter: model.prompter)
+            TakeStatusView(prompter: model.prompter, capture: model.capture)
         }
         ToolbarItem(id: "speed", placement: .primaryAction) {
             SpeedControl(prompter: model.prompter)
@@ -83,6 +83,7 @@ private struct RehearseButton: View {
 private struct TakeStatusView: View {
 
     let prompter: PrompterController
+    let capture: CaptureModel
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 0.25, paused: !prompter.session.isRunning)) { context in
@@ -102,12 +103,17 @@ private struct TakeStatusView: View {
         case .rehearsing(let isPaused):
             Text(isPaused ? "Rehearsing, paused" : "Rehearsing")
         case .recording(let elapsed):
+            // The format cannot change during a take, so the current one is the take's.
+            let isVertical = capture.videoFormat == .vertical
             HStack(spacing: 6) {
                 Circle().fill(.red).frame(width: 9, height: 9)
                 Text(ElapsedTime.format(elapsed))
+                if isVertical {
+                    Text("Vertical").foregroundStyle(.secondary)
+                }
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Recording, \(ElapsedTime.format(elapsed))")
+            .accessibilityLabel("Recording\(isVertical ? " vertical" : ""), \(ElapsedTime.format(elapsed))")
         case .saving:
             Text("Saving…").foregroundStyle(.secondary)
         }

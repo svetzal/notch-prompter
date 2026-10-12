@@ -82,6 +82,15 @@ final class EffectsGateway {
         )
     }
 
+    /// The followed camera's current frame size. It lives here because this
+    /// gateway already observes `activeFormat`, and a format change is what
+    /// changes both the effects a camera supports and the shape of its frame.
+    var formatSize: PixelSize? {
+        guard let device else { return nil }
+        let dimensions = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
+        return PixelSize(width: Int(dimensions.width), height: Int(dimensions.height))
+    }
+
     func setCenterStage(_ enabled: Bool) {
         guard AVCaptureDevice.centerStageControlMode == .cooperative else { return }
         AVCaptureDevice.isCenterStageEnabled = enabled

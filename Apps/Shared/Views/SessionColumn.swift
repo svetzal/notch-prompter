@@ -9,7 +9,7 @@ struct SessionColumn: View {
 
     var body: some View {
         Form {
-            CameraSection(capture: model.capture)
+            CameraSection(capture: model.capture, isTakeInProgress: model.prompter.session.isTakeInProgress)
             EffectsSection(capture: model.capture)
             LastTakeSection(capture: model.capture)
         }

@@ -1,4 +1,5 @@
 import AVFoundation
+import NotchPrompterKit
 
 enum CaptureError: LocalizedError {
     case deviceUnavailable
@@ -40,6 +41,9 @@ final class CaptureSessionGateway: NSObject, @unchecked Sendable {
     private var videoInput: AVCaptureDeviceInput?
     private var audioInput: AVCaptureDeviceInput?
     private var isRecordingRequested = false
+    /// The video connection whose encoder settings were changed for a crop,
+    /// so the next uncropped take can put them back.
+    private var croppedConnection: AVCaptureConnection?
 
     override init() {
         (recordingOutcomes, outcomeContinuation) = AsyncStream.makeStream()
@@ -67,15 +71,23 @@ final class CaptureSessionGateway: NSObject, @unchecked Sendable {
         }
     }
 
-    /// Starts writing a QuickTime movie of the current inputs to `url`.
+    /// Starts writing a QuickTime movie of the current inputs to `url`, in
+    /// the shape of `format`, and returns the crop it asked the encoder for.
     /// The result arrives on ``recordingOutcomes``.
-    func startRecording(to url: URL) async throws {
+    func startRecording(to url: URL, format: VideoFormat) async throws -> VideoCrop {
         try await onQueue {
-            guard self.videoInput != nil, self.movieOutput.connection(with: .video) != nil else {
+            guard let device = self.videoInput?.device, let connection = self.movieOutput.connection(with: .video) else {
                 throw CaptureError.noCamera
             }
+            let dimensions = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
+            let crop = VideoCrop(
+                source: PixelSize(width: Int(dimensions.width), height: Int(dimensions.height)),
+                format: format
+            )
+            self.applyEncoderSettings(for: crop, on: connection)
             self.isRecordingRequested = true
             self.movieOutput.startRecording(to: url, recordingDelegate: self)
+            return crop
         }
     }
 
@@ -101,6 +113,30 @@ final class CaptureSessionGateway: NSObject, @unchecked Sendable {
                 continuation.resume(with: Result { try work() })
             }
         }
+    }
+
+    /// Has the encoder write the crop's size, cut from the centre of the
+    /// camera's frame. Must run on `queue`.
+    ///
+    /// On macOS the movie output's video settings may carry a size and a
+    /// scaling mode; aspect fill scales the frame to cover that size and cuts
+    /// the overflow equally from both sides. When no crop is needed, the
+    /// connection keeps the session preset's own settings, as it always has.
+    private func applyEncoderSettings(for crop: VideoCrop, on connection: AVCaptureConnection) {
+        if croppedConnection === connection {
+            // nil puts back the settings the session preset chooses.
+            movieOutput.setOutputSettings(nil, for: connection)
+            croppedConnection = nil
+        }
+        guard crop.needsCrop else { return }
+        let presetCodec = movieOutput.outputSettings(for: connection)[AVVideoCodecKey] as? String
+        movieOutput.setOutputSettings([
+            AVVideoCodecKey: presetCodec ?? AVVideoCodecType.h264.rawValue,
+            AVVideoWidthKey: crop.output.width,
+            AVVideoHeightKey: crop.output.height,
+            AVVideoScalingModeKey: AVVideoScalingModeResizeAspectFill
+        ], for: connection)
+        croppedConnection = connection
     }
 
     /// Swaps one input for another. Must run on `queue`, inside a configuration block.

@@ -4,7 +4,8 @@ import Foundation
 ///
 /// Names lead with a sortable timestamp so Finder lists takes in the order
 /// they were made, then carry the script's title so a take is recognisable
-/// without opening it: `2026-10-12-143205-product-launch.mov`.
+/// without opening it: `2026-10-12-143205-product-launch.mov`. A vertical
+/// take ends in `-vertical`, so the two shapes are easy to tell apart.
 public enum RecordingNaming {
 
     public static let fileExtension = "mov"
@@ -37,8 +38,13 @@ public enum RecordingNaming {
         return slug.isEmpty ? fallbackSlug : slug
     }
 
-    /// The name for a take of `scriptTitle` started at `date`, in local time.
-    public static func fileName(scriptTitle: String?, date: Date, timeZone: TimeZone = .current) -> String {
+    /// The name for a take of `scriptTitle` in `format`, started at `date`, in local time.
+    public static func fileName(
+        scriptTitle: String?,
+        date: Date,
+        format: VideoFormat = .horizontal,
+        timeZone: TimeZone = .current
+    ) -> String {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
         let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
@@ -47,7 +53,8 @@ public enum RecordingNaming {
             parts.year ?? 0, parts.month ?? 0, parts.day ?? 0,
             parts.hour ?? 0, parts.minute ?? 0, parts.second ?? 0
         )
-        return "\(stamp)-\(slug(for: scriptTitle)).\(fileExtension)"
+        let suffix = format.fileNameSuffix.map { "-\($0)" } ?? ""
+        return "\(stamp)-\(slug(for: scriptTitle))\(suffix).\(fileExtension)"
     }
 
     /// `name`, or `name` with `-2`, `-3`… before the extension if it is taken.

@@ -66,6 +66,16 @@ public struct TakeSession: Equatable, Sendable {
         }
     }
 
+    /// Whether a recorded take is counting down, recording, or closing its
+    /// file. Settings that shape the movie, such as its format, hold still
+    /// until it ends. A rehearsal records nothing, so it does not count.
+    public var isTakeInProgress: Bool {
+        switch phase {
+        case .countingDown(.recording, _), .live(.recording, _), .finishing: true
+        default: false
+        }
+    }
+
     /// Whether a take can start now.
     public var canBegin: Bool {
         phase == .hidden || phase == .ready

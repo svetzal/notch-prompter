@@ -1,7 +1,8 @@
 import AVFoundation
 import SwiftUI
 
-/// The live camera image.
+/// The live camera image, whole: the view's shape should match the camera's
+/// frame, so nothing is cut off and an overlay can mark the kept region.
 struct CameraPreview: NSViewRepresentable {
 
     let session: AVCaptureSession
@@ -17,7 +18,7 @@ struct CameraPreview: NSViewRepresentable {
         init(session: AVCaptureSession) {
             super.init(frame: .zero)
             let layer = AVCaptureVideoPreviewLayer(session: session)
-            layer.videoGravity = .resizeAspectFill
+            layer.videoGravity = .resizeAspect
             layer.backgroundColor = NSColor.black.cgColor
             self.layer = layer
             wantsLayer = true

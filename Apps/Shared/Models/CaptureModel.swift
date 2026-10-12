@@ -2,8 +2,9 @@ import AppKit
 import AVFoundation
 import NotchPrompterKit
 import Observation
+import os
 
-/// The camera, the microphone, their permissions, and the video effects.
+/// The camera, the microphone, their permissions, the video effects, and the video format.
 @MainActor
 @Observable
 final class CaptureModel {
@@ -14,6 +15,8 @@ final class CaptureModel {
     private(set) var activeCameraID: String?
     private(set) var activeMicrophoneID: String?
     private(set) var effects = EffectsPresentation(.noCamera)
+    /// The camera's current frame size, `nil` without a camera.
+    private(set) var cameraSize: PixelSize?
     /// The last take that finished writing.
     private(set) var lastRecording: URL?
     var errorMessage: String?
@@ -36,6 +39,16 @@ final class CaptureModel {
         }
     }
 
+    /// The shape the next take records in.
+    var videoFormat: VideoFormat {
+        didSet { defaults.set(videoFormat.rawValue, forKey: Keys.videoFormat) }
+    }
+
+    /// The part of the camera's frame the next take keeps, for the preview.
+    var previewCrop: VideoCrop? {
+        cameraSize.map { VideoCrop(source: $0, format: videoFormat) }
+    }
+
     /// While a take records, inputs must not change. Changes wait until this clears.
     var isConfigurationLocked = false {
         didSet {
@@ -55,21 +68,25 @@ final class CaptureModel {
     /// stop that arrives while the start is still on its way to the session.
     @ObservationIgnored private var wantsRecording = false
     @ObservationIgnored private var outcomeListener: Task<Void, Never>?
+    /// The format of the take being recorded, for checking the finished file.
+    @ObservationIgnored private var recordingFormat = VideoFormat.horizontal
 
     private enum Keys {
         static let camera = "capture.cameraID"
         static let microphone = "capture.microphoneID"
+        static let videoFormat = "capture.videoFormat"
     }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         preferredCameraID = defaults.string(forKey: Keys.camera)
         preferredMicrophoneID = defaults.string(forKey: Keys.microphone)
+        videoFormat = defaults.string(forKey: Keys.videoFormat).flatMap(VideoFormat.init(rawValue:)) ?? .horizontal
         discovery.onChange = { [weak self] in self?.refreshDevices() }
-        effectsGateway.onChange = { [weak self] in self?.refreshEffects() }
+        effectsGateway.onChange = { [weak self] in self?.refreshCameraState() }
         outcomeListener = Task { [weak self, outcomes = gateway.recordingOutcomes] in
             for await outcome in outcomes {
-                self?.recordingFinished(outcome)
+                await self?.recordingFinished(outcome)
             }
         }
     }
@@ -161,15 +178,16 @@ final class CaptureModel {
         }
     }
 
-    // MARK: - Effects
+    // MARK: - Effects and format
 
-    private func refreshEffects() {
+    private func refreshCameraState() {
         effects = EffectsPresentation(effectsGateway.snapshot)
+        cameraSize = effectsGateway.formatSize
     }
 
     func setCenterStage(_ enabled: Bool) {
         effectsGateway.setCenterStage(enabled)
-        refreshEffects()
+        refreshCameraState()
     }
 
     func performReaction(_ rawValue: String) {
@@ -182,14 +200,43 @@ final class CaptureModel {
 
     // MARK: - Recording
 
-    private func recordingFinished(_ outcome: RecordingOutcome) {
+    /// Checks the finished take's shape before showing it. The take stays
+    /// "Saving" until the check, and any re-crop, is done.
+    private func recordingFinished(_ outcome: RecordingOutcome) async {
         if let failure = outcome.failure {
             errorMessage = "The take did not finish recording: \(failure)"
         } else {
+            do {
+                try await Self.confirmShape(of: outcome.url, format: recordingFormat)
+            } catch {
+                Logger.recording.error("Could not give the take its shape: \(error.localizedDescription, privacy: .public)")
+                errorMessage = "The take was saved, but could not be made \(recordingFormat.displayName.lowercased()): "
+                    + error.localizedDescription
+            }
             lastRecording = outcome.url
             NSWorkspace.shared.activateFileViewerSelecting([outcome.url])
         }
         endRecording()
+    }
+
+    /// The self-check on a finished take. If the encoder did not write the
+    /// format's shape, the movie is cut to it from the centre and replaced.
+    nonisolated private static func confirmShape(of url: URL, format: VideoFormat) async throws {
+        let track = try await MovieFile.videoTrack(of: url)
+        let shown = track.displayedSize
+        if format.hasShape(of: shown) {
+            Logger.recording.notice(
+                "Take is \(shown, privacy: .public), the \(format.rawValue, privacy: .public) shape; no re-crop needed"
+            )
+            return
+        }
+        let crop = VideoCrop(source: shown, format: format)
+        Logger.recording.notice("""
+            Take is \(shown, privacy: .public), not the \(format.rawValue, privacy: .public) shape: \
+            the encoder did not crop it. Fallback: re-cropping to \(crop.output, privacy: .public) by export
+            """)
+        try await MovieFile.replace(url, croppingTo: crop, track: track)
+        Logger.recording.notice("Fallback re-crop finished; the take is now \(crop.output, privacy: .public)")
     }
 
     private func endRecording() {
@@ -213,12 +260,15 @@ extension CaptureModel: TakeRecorder {
                 return
             }
             do {
+                let format = videoFormat
+                recordingFormat = format
                 let existing = try RecordingFolder.prepare()
                 let name = RecordingNaming.uniqueFileName(
-                    RecordingNaming.fileName(scriptTitle: scriptTitle, date: .now),
+                    RecordingNaming.fileName(scriptTitle: scriptTitle, date: .now, format: format),
                     existing: existing
                 )
-                try await gateway.startRecording(to: RecordingFolder.url.appending(path: name))
+                let crop = try await gateway.startRecording(to: RecordingFolder.url.appending(path: name), format: format)
+                Self.logStart(of: crop)
                 if !wantsRecording {
                     await gateway.stopRecording()
                 }
@@ -226,6 +276,20 @@ extension CaptureModel: TakeRecorder {
                 errorMessage = "Could not start recording: \(error.localizedDescription)"
                 endRecording()
             }
+        }
+    }
+
+    private static func logStart(of crop: VideoCrop) {
+        let format = crop.format.rawValue
+        if crop.needsCrop {
+            Logger.recording.notice("""
+                \(format, privacy: .public) take: camera \(crop.source, privacy: .public), \
+                encoder asked for \(crop.output, privacy: .public) with aspect fill
+                """)
+        } else {
+            Logger.recording.notice(
+                "\(format, privacy: .public) take: camera \(crop.source, privacy: .public) already has the shape; no crop"
+            )
         }
     }
 

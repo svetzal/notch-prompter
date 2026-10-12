@@ -12,7 +12,7 @@ scroll, and the recording. `CHARTER.md` sets the scope.
 
 | Path | What lives there |
 | --- | --- |
-| `Sources/NotchPrompterKit` | Functional core. Script parsing, prompter layout, the scroll engine, panel placement, the take state machine, the effects model, file naming. No SwiftUI, AppKit, or AVFoundation. |
+| `Sources/NotchPrompterKit` | Functional core. Script parsing, prompter layout, the scroll engine, panel placement, the take state machine, the effects model, the video format crop, file naming. No SwiftUI, AppKit, or AVFoundation. |
 | `Tests/NotchPrompterKitTests` | Swift Testing suites for the Kit. |
 | `Apps/Shared/Gateways` | Thin adapters over AppKit, AVFoundation, and the file system. |
 | `Apps/Shared/Models` | Observable app models that run the Kit's logic against the gateways. |
@@ -42,7 +42,8 @@ scheme.
 
 1. Pick or write a script in the left column. Scripts autosave a second after
    you stop typing, and on ⌘S.
-2. Check the camera, microphone, and effects in the right column.
+2. Check the camera, microphone, and effects in the right column, and pick
+   Horizontal or Vertical under the preview.
 3. Click Record in the toolbar, or press ⌘R. After the countdown, the
    prompter scrolls and the recording runs. Click Stop or press Esc to stop
    both. Finder shows the new movie.
@@ -67,8 +68,8 @@ countdown, the display, and the keys reference. Video Effects opens the
 system Video Effects panel. Record becomes Stop while a countdown, a run, or
 saving is under way. Each control's tooltip names its keyboard shortcut.
 
-The right column keeps the camera preview, the camera and microphone
-pickers, the effects state, and a link to the last take.
+The right column keeps the camera preview, the video format, the camera and
+microphone pickers, the effects state, and a link to the last take.
 
 ### Keys while the prompter shows
 
@@ -204,8 +205,54 @@ pane. Without the microphone, takes record video only.
 
 Takes are QuickTime movies in `~/Movies/Notch Prompter/`, named with a
 timestamp and the script title, for example
-`2026-10-12-143205-product-launch.mov`. A second take in the same second
-gets `-2`. Device changes are held back while a take records.
+`2026-10-12-143205-product-launch.mov`. Vertical takes end in `-vertical`.
+A second take in the same second gets `-2`. Device changes are held back
+while a take records.
+
+## Video format
+
+The Format control under the camera preview records each take as
+Horizontal (16:9) or Vertical (9:16). The choice is remembered, and it is
+locked while a take counts down, records, or saves. The camera is never
+turned: a take is cut from the centre of the camera's frame. On a 1920x1080
+laptop camera, a vertical take keeps the full height and is 608x1080. A
+camera that already has the format's shape, such as a 16:9 camera for
+Horizontal or an upright iPhone for Vertical, records as it always did.
+
+The preview shows the whole camera frame. For a cut format, it dims what
+the take will not keep and outlines what it will, so you can frame
+yourself before you record.
+
+How the cut is made:
+
+1. At the start of each take, `VideoCrop` in the Kit works out the kept
+   region from the camera's current format: centred, even pixel sizes, and
+   never larger than the camera's frame.
+2. The movie output's encoder is asked for that size with aspect-fill
+   scaling, so it writes the cut frame while it records. Clean-aperture
+   metadata is not used, because many players and upload services ignore
+   it.
+3. When the take's file closes, the app reads the movie's displayed size.
+   If it does not have the format's shape, the app cuts it from the centre
+   with an export and replaces the file. The take shows "Saving…" until
+   this is done.
+
+The log says which path gave the take its shape:
+
+```bash
+log show --last 1h --predicate 'subsystem == "com.mojility.notch-prompter"'
+```
+
+Two limits to know:
+
+- Vertical has low resolution on a 1080p laptop camera: 608x1080, about a
+  third of the frame. A 4K camera or an iPhone gives a sharper vertical
+  take.
+- Center Stage frames for the whole camera image. macOS does not let an app
+  give Center Stage a region of interest (`centerStageRectOfInterest` is
+  not available on macOS), so in a vertical take Center Stage can move you
+  toward the dimmed sides. Turn Center Stage off for vertical takes if it
+  does.
 
 ## Signing
 

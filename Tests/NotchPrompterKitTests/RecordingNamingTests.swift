@@ -38,6 +38,20 @@ struct RecordingNamingTests {
         )
     }
 
+    @Test("vertical takes say so in the name; horizontal takes keep the plain name")
+    func formatSuffix() throws {
+        let toronto = try #require(TimeZone(identifier: "America/Toronto"))
+        let date = Date(timeIntervalSince1970: 1_791_829_925)
+        #expect(
+            RecordingNaming.fileName(scriptTitle: "Product Launch", date: date, format: .vertical, timeZone: toronto)
+                == "2026-10-12-143205-product-launch-vertical.mov"
+        )
+        #expect(
+            RecordingNaming.fileName(scriptTitle: "Product Launch", date: date, format: .horizontal, timeZone: toronto)
+                == "2026-10-12-143205-product-launch.mov"
+        )
+    }
+
     @Test("a taken name gets a counter before the extension, ignoring case")
     func unique() {
         let existing: Set = ["a.mov", "A-2.MOV"]

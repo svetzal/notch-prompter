@@ -5,7 +5,20 @@ All notable changes to this project are recorded here. The format follows
 
 ## Unreleased
 
+### Added
+
+- Video format: record a take as Horizontal (16:9) or Vertical (9:16). The
+  choice is next to the camera preview and is remembered. A vertical take
+  is cut from the centre of the camera's frame, at full height, while it
+  records; the preview dims what the take will not keep. After each take
+  the app checks the movie's shape and, if the encoder did not cut it,
+  re-crops it by export. Vertical takes end in `-vertical`, and the toolbar
+  shows "Vertical" while one records.
+
 ### Changed
+
+- The camera preview shows the camera's whole frame, in the camera's own
+  shape, instead of filling a 16:9 box.
 
 - The prompter grows out of the notch instead of hanging below it. The panel
   starts at the screen's top edge, is pure black, and has the notch's

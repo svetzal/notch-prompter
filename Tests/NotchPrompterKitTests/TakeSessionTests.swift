@@ -242,3 +242,25 @@ struct PrompterKeyCommandTests {
         }
     }
 }
+
+@Suite("Take in progress")
+struct TakeInProgressTests {
+
+    @Test("a recorded take holds its settings from the countdown until the file closes; a rehearsal does not")
+    func takeInProgress() {
+        var session = makeSession()
+        #expect(!session.isTakeInProgress)
+        _ = session.begin(.rehearsal, at: at(0))
+        #expect(!session.isTakeInProgress)
+        _ = session.stop(at: at(1))
+
+        _ = session.begin(.recording, at: at(2))
+        #expect(session.isTakeInProgress)
+        _ = session.countdownDidEnd(scheduledFor: at(5), at: at(5))
+        #expect(session.isTakeInProgress)
+        _ = session.stop(at: at(6))
+        #expect(session.isTakeInProgress)
+        session.recordingDidEnd(at: at(7))
+        #expect(!session.isTakeInProgress)
+    }
+}
