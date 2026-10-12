@@ -72,7 +72,8 @@ final class CaptureSessionGateway: NSObject, @unchecked Sendable {
     /// that preset may change its inputs' formats as it likes. Holding the
     /// lock is what keeps a native format in place. It is held only while
     /// Vertical uses a native format, and released before the camera leaves
-    /// the session and when the session stops.
+    /// the session. The session runs until the app quits, and process exit
+    /// releases the lock then.
     private var lockedCamera: AVCaptureDevice?
 
     override init() {

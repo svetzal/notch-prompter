@@ -62,8 +62,8 @@ and the effects facts.
   or a camera without one, set `activeFormat` back to the preset format
   remembered when the input was added (never rely on the preset to do it),
   then unlock. Release the lock before the camera's input is removed or
-  replaced and when the session stops. Never leave a device locked that is
-  not in the session.
+  replaced. Never leave a device locked that is not in the session. The
+  session runs until the app quits, and process exit releases the lock.
 - The crop geometry (kept size, centring, even sizes, the preview's kept
   region) is `VideoCrop` in the Kit. The gateways only apply it. It is the
   path for cameras without a native portrait format; with one, the source

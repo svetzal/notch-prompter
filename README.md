@@ -252,7 +252,8 @@ format again at any time. To keep the native format, the app holds the
 camera's configuration lock for as long as Vertical uses it. For
 Horizontal, or a camera without a native format, the app sets the
 remembered preset format back itself and releases the lock. It releases
-the lock before a camera leaves the session and when the session stops.
+the lock before a camera leaves the session. When the app quits, the
+system releases the lock.
 
 A camera without a native portrait format, such as an iPhone as a
 Continuity Camera, keeps the cut: the take is cut from the centre of the
