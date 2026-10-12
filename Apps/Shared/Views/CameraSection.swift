@@ -4,7 +4,7 @@ import SwiftUI
 /// Permission notices, the preview, and the device pickers.
 struct CameraSection: View {
 
-    @Bindable var capture: CaptureModel
+    let capture: CaptureModel
 
     var body: some View {
         Section("Camera") {
@@ -16,35 +16,32 @@ struct CameraSection: View {
                     .aspectRatio(16 / 9, contentMode: .fit)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
             }
-            Picker("Camera", selection: $capture.preferredCameraID) {
+            Picker("Camera", selection: cameraSelection) {
                 ForEach(capture.cameras) { camera in
                     Text(camera.kind == .continuityCamera ? "\(camera.name) (iPhone)" : camera.name)
                         .tag(Optional(camera.id))
                 }
             }
             .disabled(!capture.access.canUseCamera || capture.isConfigurationLocked)
-            Picker("Microphone", selection: $capture.preferredMicrophoneID) {
+            Picker("Microphone", selection: microphoneSelection) {
                 ForEach(capture.microphones) { microphone in
                     Text(microphone.name).tag(Optional(microphone.id))
                 }
             }
             .disabled(!capture.access.canUseMicrophone || capture.isConfigurationLocked)
         }
-        .onAppear(perform: syncPickers)
-        .onChange(of: capture.activeCameraID) { syncPickers() }
-        .onChange(of: capture.activeMicrophoneID) { syncPickers() }
     }
 
-    /// Shows the device actually in use when the stored choice is missing.
-    private func syncPickers() {
-        if capture.preferredCameraID.map({ id in !capture.cameras.contains { $0.id == id } }) ?? true,
-           let active = capture.activeCameraID {
-            capture.preferredCameraID = active
-        }
-        if capture.preferredMicrophoneID.map({ id in !capture.microphones.contains { $0.id == id } }) ?? true,
-           let active = capture.activeMicrophoneID {
-            capture.preferredMicrophoneID = active
-        }
+    // The pickers show the device in use and record a choice when changed.
+    // Reading the device in use, not the stored choice, keeps a disconnected
+    // camera remembered without leaving the picker blank.
+
+    private var cameraSelection: Binding<String?> {
+        Binding(get: { capture.activeCameraID }, set: { capture.preferredCameraID = $0 })
+    }
+
+    private var microphoneSelection: Binding<String?> {
+        Binding(get: { capture.activeMicrophoneID }, set: { capture.preferredMicrophoneID = $0 })
     }
 }
 
