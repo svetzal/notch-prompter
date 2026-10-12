@@ -18,10 +18,16 @@ public struct PrompterSettings: Equatable, Sendable {
     /// Line height as a multiple of the font size.
     public static let lineSpacing = 1.3
     /// Space inside the panel, left and right of the text column.
-    public static let horizontalPadding = 16.0
+    /// Wide enough that text clears the panel's rounded bottom corners.
+    public static let horizontalPadding = 28.0
     /// Space below the last line. The space above comes from the placement's
     /// top inset, so the reading line sits right under the notch.
     public static let bottomPadding = 8.0
+    /// How much of a line the text fades out over at the top edge. Short, so
+    /// the line being read is fully clear when it reaches the reading line.
+    public static let topFadeLines = 0.4
+    /// How much of a line the text fades in over at the bottom edge.
+    public static let bottomFadeLines = 0.8
 
     public var wordsPerMinute: Double { didSet { wordsPerMinute = Self.clamp(wordsPerMinute, to: Self.speedRange) } }
     public var fontSize: Double { didSet { fontSize = Self.clamp(fontSize, to: Self.fontSizeRange) } }
@@ -58,6 +64,16 @@ public struct PrompterSettings: Equatable, Sendable {
     /// notch above and the ears beside.
     public var textAreaSize: CGSize {
         CGSize(width: width, height: Double(visibleLines) * lineHeight + Self.bottomPadding)
+    }
+
+    /// The top fade as a fraction of the lines' height, for a gradient mask.
+    public var topFade: Double {
+        Self.topFadeLines / Double(visibleLines)
+    }
+
+    /// The bottom fade as a fraction of the lines' height, for a gradient mask.
+    public var bottomFade: Double {
+        Self.bottomFadeLines / Double(visibleLines)
     }
 
     public mutating func faster() { wordsPerMinute += Self.speedStep }

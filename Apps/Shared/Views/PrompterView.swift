@@ -94,6 +94,19 @@ private struct PrompterLines: View {
         .frame(width: settings.textWidth, alignment: .topLeading)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .clipped()
+        // Lines fade in at the bottom and out at the top instead of being cut off.
+        .mask {
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: .black, location: settings.topFade),
+                    .init(color: .black, location: 1 - settings.bottomFade),
+                    .init(color: .clear, location: 1)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
     }
 }
 

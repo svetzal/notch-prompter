@@ -14,6 +14,9 @@ All notable changes to this project are recorded here. The format follows
   the same shape hangs from the top centre of the display.
 - The prompter panel sits one level higher, above the menu bar's status
   items.
+- Prompter text has more room at the sides (28 points instead of 16), so it
+  clears the panel's rounded bottom corners. Lines fade in at the bottom
+  edge and out at the top edge instead of being cut off.
 - The run controls moved from the session column to a customizable toolbar:
   the Prompter toggle and Rehearse on the left, the take status in the
   centre, and speed, Prompter Settings, Video Effects, and Record (Stop

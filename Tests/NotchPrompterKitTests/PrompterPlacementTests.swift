@@ -110,8 +110,19 @@ struct PrompterSettingsTests {
     func metrics() {
         let settings = PrompterSettings(fontSize: 30, width: 460, visibleLines: 4)
         #expect(settings.lineHeight == 39)
-        #expect(settings.textWidth == 428)
+        #expect(settings.textWidth == 404)
         #expect(settings.textAreaSize == CGSize(width: 460, height: 164))
+    }
+
+    @Test("fades a fixed share of a line at each edge, whatever the line count")
+    func edgeFade() {
+        let four = PrompterSettings(visibleLines: 4)
+        #expect(four.topFade == 0.1)
+        #expect(four.bottomFade == 0.2)
+        let two = PrompterSettings(visibleLines: 2)
+        #expect(two.topFade == 0.2)
+        #expect(two.bottomFade == 0.4)
+        #expect(two.topFade + two.bottomFade < 1)
     }
 
     @Test("clamps on creation and on every change")
