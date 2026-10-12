@@ -178,16 +178,37 @@ read from `AVCaptureDevice.h` in the macOS 27 SDK:
 - `portraitEffectEnabled`, `studioLightEnabled`, and
   `backgroundReplacementEnabled` are read-only class properties. Only the
   user can change them, in Control Center.
+- Edge Light (macOS 26.2 and later) is read-only too. The class properties
+  `isEdgeLightEnabled` (switched on in Control Center) and
+  `isEdgeLightActive` (the light is showing on a screen now) are key-value
+  observable, and `AVCaptureDeviceFormat.isEdgeLightSupported` says whether
+  the camera's format supports it. No API turns it on or changes its
+  Automatic mode. The system draws it on a display (the built-in display for
+  the built-in camera, the primary display for other cameras), so it lights
+  your face but is not part of the camera image.
 - `showSystemUserInterface(.videoEffects)` opens the system Video Effects
   panel. Video Effects in the toolbar calls it.
 
 The window shows each effect's live state from key-value observation of the
 device (`isPortraitEffectActive`, `isStudioLightActive`,
 `isBackgroundReplacementActive`, `isCenterStageActive`,
-`canPerformReactionEffects`, `activeFormat`) and of the class switches. An
-effect reads "On, not active" when its switch is on but the camera is not
-applying it, and "Not available" when the camera's format does not support
-it.
+`canPerformReactionEffects`, `activeFormat`) and of the class switches,
+including `edgeLightEnabled` and `edgeLightActive`. An effect reads "On, not
+active" when its switch is on but the camera is not applying it, and "Not
+available" when the camera's format does not support it.
+
+Edge Light reads its state from the system, not from the camera:
+
+| Edge Light state | The row shows |
+| --- | --- |
+| Format does not support it, or macOS is earlier than 26.2 | Not available |
+| Off in Control Center | Off |
+| On in Control Center, not showing | On, not active, with a note: in Automatic mode it comes on only in low light, and Video Effects can set it to On |
+| Showing on a screen | On |
+
+Each take's log records the Edge Light state at the start of the take
+(enabled, active, format supported), in the `recording` category of the
+`com.mojility.notch-prompter` subsystem.
 
 ## Cameras and microphones
 

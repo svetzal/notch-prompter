@@ -3,6 +3,7 @@ public enum VideoEffect: CaseIterable, Sendable {
     case portrait
     case studioLight
     case backgroundReplacement
+    case edgeLight
     case centerStage
 
     public var title: String {
@@ -10,6 +11,7 @@ public enum VideoEffect: CaseIterable, Sendable {
         case .portrait: "Portrait"
         case .studioLight: "Studio Light"
         case .backgroundReplacement: "Background"
+        case .edgeLight: "Edge Light"
         case .centerStage: "Center Stage"
         }
     }
@@ -21,7 +23,8 @@ public struct EffectReading: Equatable, Sendable {
     public var isSupported: Bool
     /// The system-wide switch (Control Center) is on.
     public var isEnabled: Bool
-    /// The camera is applying it now.
+    /// The effect is in use now. For the camera effects, the camera is
+    /// applying it. For Edge Light, the system is drawing it on a screen.
     public var isActive: Bool
 
     public init(isSupported: Bool, isEnabled: Bool, isActive: Bool) {
@@ -51,6 +54,10 @@ public struct EffectsSnapshot: Equatable, Sendable {
     public var portrait: EffectReading
     public var studioLight: EffectReading
     public var backgroundReplacement: EffectReading
+    /// Edge Light is drawn by the system on a display, not by the camera.
+    /// Support comes from the camera's active format, but enabled and active
+    /// are system-wide: active means the light is showing on a screen now.
+    public var edgeLight: EffectReading
     public var centerStage: EffectReading
     public var centerStageControl: CenterStageControl
     /// Reactions are allowed for this app (`reactionEffectsEnabled`).
@@ -64,6 +71,7 @@ public struct EffectsSnapshot: Equatable, Sendable {
         portrait: EffectReading,
         studioLight: EffectReading,
         backgroundReplacement: EffectReading,
+        edgeLight: EffectReading,
         centerStage: EffectReading,
         centerStageControl: CenterStageControl,
         reactionsEnabled: Bool,
@@ -73,6 +81,7 @@ public struct EffectsSnapshot: Equatable, Sendable {
         self.portrait = portrait
         self.studioLight = studioLight
         self.backgroundReplacement = backgroundReplacement
+        self.edgeLight = edgeLight
         self.centerStage = centerStage
         self.centerStageControl = centerStageControl
         self.reactionsEnabled = reactionsEnabled
@@ -85,6 +94,7 @@ public struct EffectsSnapshot: Equatable, Sendable {
         portrait: .unsupported,
         studioLight: .unsupported,
         backgroundReplacement: .unsupported,
+        edgeLight: .unsupported,
         centerStage: .unsupported,
         centerStageControl: .user,
         reactionsEnabled: false,
@@ -97,6 +107,7 @@ public struct EffectsSnapshot: Equatable, Sendable {
         case .portrait: portrait
         case .studioLight: studioLight
         case .backgroundReplacement: backgroundReplacement
+        case .edgeLight: edgeLight
         case .centerStage: centerStage
         }
     }
@@ -105,13 +116,15 @@ public struct EffectsSnapshot: Equatable, Sendable {
 /// What the effects section of the window shows, derived from a snapshot.
 ///
 /// Apple lets an app switch Center Stage (in cooperative mode) and trigger
-/// reactions. Portrait, Studio Light, and background replacement are
-/// read-only to apps, so their only control is the system Video Effects panel.
+/// reactions. Portrait, Studio Light, background replacement, and Edge Light
+/// are read-only to apps, so their only control is the system Video Effects
+/// panel.
 public struct EffectsPresentation: Equatable, Sendable {
 
     public enum Status: Equatable, Sendable {
         case active
-        /// Switched on, but this camera is not applying it in its current state.
+        /// Switched on, but not in use now: this camera is not applying it in
+        /// its current state, or (for Edge Light) the system is not showing it.
         case enabledButInactive
         case off
         case unsupported
@@ -136,6 +149,8 @@ public struct EffectsPresentation: Equatable, Sendable {
         public let effect: VideoEffect
         public let status: Status
         public let control: Control
+        /// A short explanation of the status, when the label alone could mislead.
+        public let note: String?
         public var id: String { effect.title }
     }
 
@@ -148,10 +163,12 @@ public struct EffectsPresentation: Equatable, Sendable {
     public init(_ snapshot: EffectsSnapshot) {
         rows = VideoEffect.allCases.map { effect in
             let reading = snapshot.reading(for: effect)
+            let status = Self.status(of: reading)
             return Row(
                 effect: effect,
-                status: Self.status(of: reading),
-                control: Self.control(for: effect, reading: reading, centerStageControl: snapshot.centerStageControl)
+                status: status,
+                control: Self.control(for: effect, reading: reading, centerStageControl: snapshot.centerStageControl),
+                note: Self.note(for: effect, status: status)
             )
         }
         if !snapshot.reactionsEnabled {
@@ -170,6 +187,13 @@ public struct EffectsPresentation: Equatable, Sendable {
         if !reading.isSupported { return .unsupported }
         if reading.isActive { return .active }
         return reading.isEnabled ? .enabledButInactive : .off
+    }
+
+    /// Edge Light switched on in Control Center but not showing is the
+    /// normal state of its Automatic mode in a lit room, not a fault.
+    static func note(for effect: VideoEffect, status: Status) -> String? {
+        guard effect == .edgeLight, status == .enabledButInactive else { return nil }
+        return "In Automatic mode it comes on only in low light. Set it to On in Video Effects to keep it showing."
     }
 
     static func control(

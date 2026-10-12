@@ -4,9 +4,11 @@ import NotchPrompterKit
 /// Reads and observes the system video effects for one camera, and carries
 /// out the two controls Apple allows: Center Stage and reactions.
 ///
-/// Portrait, Studio Light, and background replacement are read-only class
-/// properties. Do not try to set them; send people to the Video Effects
-/// panel instead. Center Stage runs in `.cooperative` mode so Control Center
+/// Portrait, Studio Light, background replacement, and Edge Light are
+/// read-only class properties. Do not try to set them; send people to the
+/// Video Effects panel instead. Edge Light (macOS 26.2 and later) is drawn by
+/// the system on a display, so its enabled and active state are class-wide.
+/// Below macOS 26.2 it reads as unsupported. Center Stage runs in `.cooperative` mode so Control Center
 /// keeps working. Never switch it to `.app`, which would grey out the
 /// user's own control.
 @MainActor
@@ -22,10 +24,14 @@ final class EffectsGateway {
         if AVCaptureDevice.centerStageControlMode != .cooperative {
             AVCaptureDevice.centerStageControlMode = .cooperative
         }
-        classObserver = ClassKeyObserver(keyPaths: [
+        var classKeys = [
             "centerStageEnabled", "centerStageControlMode", "portraitEffectEnabled",
             "studioLightEnabled", "backgroundReplacementEnabled", "reactionEffectsEnabled"
-        ]) { [weak self] in
+        ]
+        if #available(macOS 26.2, *) {
+            classKeys += ["edgeLightEnabled", "edgeLightActive"]
+        }
+        classObserver = ClassKeyObserver(keyPaths: classKeys) { [weak self] in
             Task { @MainActor in self?.onChange?() }
         }
     }
@@ -70,6 +76,7 @@ final class EffectsGateway {
                 isEnabled: AVCaptureDevice.isBackgroundReplacementEnabled,
                 isActive: device.isBackgroundReplacementActive
             ),
+            edgeLight: Self.edgeLight(format: format),
             centerStage: EffectReading(
                 isSupported: format.isCenterStageSupported,
                 isEnabled: AVCaptureDevice.isCenterStageEnabled,
@@ -109,6 +116,15 @@ final class EffectsGateway {
 
     static func systemImage(forReaction rawValue: String) -> String {
         AVCaptureReactionType(rawValue: rawValue).systemImageName
+    }
+
+    private static func edgeLight(format: AVCaptureDevice.Format) -> EffectReading {
+        guard #available(macOS 26.2, *) else { return .unsupported }
+        return EffectReading(
+            isSupported: format.isEdgeLightSupported,
+            isEnabled: AVCaptureDevice.isEdgeLightEnabled,
+            isActive: AVCaptureDevice.isEdgeLightActive
+        )
     }
 
     private static func control(_ mode: AVCaptureDevice.CenterStageControlMode) -> EffectsSnapshot.CenterStageControl {

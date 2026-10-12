@@ -9,8 +9,13 @@ struct EffectsSection: View {
     var body: some View {
         Section {
             ForEach(capture.effects.rows) { row in
-                LabeledContent(row.effect.title) {
+                LabeledContent {
                     control(for: row)
+                } label: {
+                    Text(row.effect.title)
+                    if let note = row.note {
+                        Text(note)
+                    }
                 }
             }
             reactions
@@ -18,8 +23,9 @@ struct EffectsSection: View {
             Text("Video effects")
         } footer: {
             Text(
-                "Portrait, Studio Light, and Background can only be changed in the Video Effects panel, "
-                    + "which Video Effects in the toolbar opens. Recordings include every effect."
+                "Portrait, Studio Light, Background, and Edge Light can only be changed in the Video Effects "
+                    + "panel, which Video Effects in the toolbar opens. Recordings include every camera effect. "
+                    + "Edge Light is drawn on the screen, so a take shows only its light on your face."
             )
                 .font(.caption)
                 .foregroundStyle(.secondary)

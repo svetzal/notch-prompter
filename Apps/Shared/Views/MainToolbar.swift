@@ -33,7 +33,7 @@ struct MainToolbar: CustomizableToolbarContent {
             } label: {
                 Label("Video Effects", systemImage: "camera.filters")
             }
-            .help("Open the system Video Effects panel: Portrait, Studio Light, and Background")
+            .help("Open the system Video Effects panel: Portrait, Studio Light, Background, and Edge Light")
         }
         ToolbarItem(id: "record", placement: .primaryAction) {
             RecordButton(model: model)

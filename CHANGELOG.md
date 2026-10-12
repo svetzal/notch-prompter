@@ -7,6 +7,12 @@ All notable changes to this project are recorded here. The format follows
 
 ### Added
 
+- Edge Light in the effects panel (macOS 26.2 and later). The row shows
+  whether the camera's format supports it, whether Control Center has it
+  on, and whether it is showing. When it is on but not showing, a note
+  says that Automatic mode turns it on only in low light and that Video
+  Effects can set it to On. It is read-only, like Portrait and Studio
+  Light. Each take's log records the Edge Light state at the start.
 - Video format: record a take as Horizontal (16:9) or Vertical (9:16). The
   choice is next to the camera preview and is remembered. A vertical take
   is cut from the centre of the camera's frame, at full height, while it

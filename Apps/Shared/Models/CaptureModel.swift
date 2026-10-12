@@ -269,6 +269,7 @@ extension CaptureModel: TakeRecorder {
                 )
                 let crop = try await gateway.startRecording(to: RecordingFolder.url.appending(path: name), format: format)
                 Self.logStart(of: crop)
+                Self.logEdgeLight(effectsGateway.snapshot.edgeLight)
                 if !wantsRecording {
                     await gateway.stopRecording()
                 }
@@ -291,6 +292,17 @@ extension CaptureModel: TakeRecorder {
                 "\(format, privacy: .public) take: camera \(crop.source, privacy: .public) already has the shape; no crop"
             )
         }
+    }
+
+    /// Edge Light changes how a take looks but leaves no mark in the file,
+    /// so this log line is the only record of whether it was on. Below
+    /// macOS 26.2 every value reads false.
+    private static func logEdgeLight(_ reading: EffectReading) {
+        Logger.recording.notice("""
+            Edge Light at take start: enabled \(reading.isEnabled, privacy: .public), \
+            active \(reading.isActive, privacy: .public), \
+            format supported \(reading.isSupported, privacy: .public)
+            """)
     }
 
     func stopRecording() {

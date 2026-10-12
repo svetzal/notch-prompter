@@ -63,6 +63,7 @@ struct EffectsPresentationTests {
 
     func snapshot(
         portrait: EffectReading = .unsupported,
+        edgeLight: EffectReading = .unsupported,
         centerStage: EffectReading = .unsupported,
         centerStageControl: EffectsSnapshot.CenterStageControl = .cooperative,
         reactionsEnabled: Bool = true,
@@ -73,6 +74,7 @@ struct EffectsPresentationTests {
             portrait: portrait,
             studioLight: .unsupported,
             backgroundReplacement: .unsupported,
+            edgeLight: edgeLight,
             centerStage: centerStage,
             centerStageControl: centerStageControl,
             reactionsEnabled: reactionsEnabled,
@@ -88,7 +90,9 @@ struct EffectsPresentationTests {
     @Test("lists every effect in a fixed order")
     func order() {
         let presentation = EffectsPresentation(.noCamera)
-        #expect(presentation.rows.map(\.effect) == [.portrait, .studioLight, .backgroundReplacement, .centerStage])
+        #expect(presentation.rows.map(\.effect) == [
+            .portrait, .studioLight, .backgroundReplacement, .edgeLight, .centerStage
+        ])
     }
 
     @Test("status follows support, then activity, then the system switch", arguments: [
@@ -105,6 +109,47 @@ struct EffectsPresentationTests {
     func readOnlyEffects() {
         let reading = EffectReading(isSupported: true, isEnabled: false, isActive: false)
         #expect(row(.portrait, in: EffectsPresentation(snapshot(portrait: reading)))?.control == .systemPanel)
+    }
+
+    @Test("Edge Light status follows format support, the Control Center switch, and whether it is showing", arguments: [
+        (EffectReading(isSupported: false, isEnabled: false, isActive: false), EffectsPresentation.Status.unsupported),
+        (EffectReading(isSupported: true, isEnabled: false, isActive: false), .off),
+        (EffectReading(isSupported: true, isEnabled: true, isActive: false), .enabledButInactive),
+        (EffectReading(isSupported: true, isEnabled: true, isActive: true), .active)
+    ])
+    func edgeLightStatus(reading: EffectReading, expected: EffectsPresentation.Status) {
+        #expect(row(.edgeLight, in: EffectsPresentation(snapshot(edgeLight: reading)))?.status == expected)
+    }
+
+    @Test("Edge Light is read-only, so it offers only the system panel")
+    func edgeLightControl() {
+        let reading = EffectReading(isSupported: true, isEnabled: true, isActive: true)
+        #expect(row(.edgeLight, in: EffectsPresentation(snapshot(edgeLight: reading)))?.control == .systemPanel)
+        #expect(row(.edgeLight, in: EffectsPresentation(.noCamera))?.control == EffectsPresentation.Control.none)
+    }
+
+    @Test("Edge Light switched on but not showing explains Automatic mode")
+    func edgeLightNotShowing() {
+        let reading = EffectReading(isSupported: true, isEnabled: true, isActive: false)
+        let edgeLight = row(.edgeLight, in: EffectsPresentation(snapshot(edgeLight: reading)))
+        #expect(edgeLight?.status.label == "On, not active")
+        #expect(edgeLight?.note?.contains("low light") == true)
+        #expect(edgeLight?.note?.contains("Set it to On in Video Effects") == true)
+    }
+
+    @Test("Edge Light has no note when the label says it all", arguments: [
+        EffectReading(isSupported: true, isEnabled: true, isActive: true),
+        EffectReading(isSupported: true, isEnabled: false, isActive: false),
+        EffectReading.unsupported
+    ])
+    func edgeLightNoNote(reading: EffectReading) {
+        #expect(row(.edgeLight, in: EffectsPresentation(snapshot(edgeLight: reading)))?.note == nil)
+    }
+
+    @Test("other effects switched on but inactive carry no note")
+    func otherEffectsNoNote() {
+        let reading = EffectReading(isSupported: true, isEnabled: true, isActive: false)
+        #expect(row(.portrait, in: EffectsPresentation(snapshot(portrait: reading)))?.note == nil)
     }
 
     @Test("Center Stage gets a switch under cooperative control")

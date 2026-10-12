@@ -26,7 +26,8 @@ scroll, and the recording.
 - Camera and microphone selection, including an iPhone as a Continuity
   Camera.
 - The live state of the system video effects: Portrait, Studio Light,
-  background replacement, Center Stage, and reactions.
+  background replacement, Edge Light, Center Stage, and reactions. Edge
+  Light is read-only.
 - Direct control of the effects that Apple lets an app control: Center Stage
   and reactions. For the other effects, a button opens the system Video
   Effects panel.
@@ -53,5 +54,11 @@ From the macOS 27 SDK (`AVCaptureDevice.h`):
 - `portraitEffectEnabled`, `studioLightEnabled`, and
   `backgroundReplacementEnabled` are read-only class properties. Only the
   user can change them, in Control Center.
+- Edge Light (macOS 26.2 and later) is read-only. The class property
+  `isEdgeLightEnabled` is on when Control Center has it on.
+  `isEdgeLightActive`, also a class property, is on when the light is
+  showing on a screen. `AVCaptureDeviceFormat.isEdgeLightSupported` says
+  whether a format supports it. No API turns it on or changes Automatic
+  mode. The system draws it on a display, not in the camera image.
 - `showSystemUserInterface(.videoEffects)` opens the system Video Effects
   panel.
