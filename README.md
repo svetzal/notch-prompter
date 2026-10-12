@@ -62,6 +62,7 @@ Control-click the toolbar, or choose View > Customize Toolbar.
 | Left | Prompter (show or hide it), Rehearse |
 | Centre | Take status: Ready, the countdown, Rehearsing, or a red dot with the recording time. Saving… while the movie file closes. |
 | Right | Speed (− / wpm / +), Prompter Settings, Video Effects, Record |
+| Optional | Mic Modes, which opens the system Microphone Modes panel. It is not in the toolbar by default; add it with Customize Toolbar. |
 
 Prompter Settings holds the text size, the number of lines, the width, the
 countdown, the display, and the keys reference. Video Effects opens the
@@ -69,7 +70,8 @@ system Video Effects panel. Record becomes Stop while a countdown, a run, or
 saving is under way. Each control's tooltip names its keyboard shortcut.
 
 The right column keeps the camera preview, the video format, the camera and
-microphone pickers, the effects state, and a link to the last take.
+microphone pickers, the microphone mode, the effects state, and a link to
+the last take.
 
 ### Keys while the prompter shows
 
@@ -222,6 +224,31 @@ Camera and microphone access are requested at launch. If either is denied,
 the window says what that means and links to the right Privacy & Security
 pane. Without the microphone, takes record video only.
 
+## Microphone mode
+
+macOS has three microphone modes: Standard, Voice Isolation, and Wide
+Spectrum. You choose one with Mic Mode in Control Center. The app cannot
+set the mode. It can only read it and open the system Microphone Modes
+panel. As read from `AVCaptureDevice.h` in the macOS 27 SDK:
+
+- `preferredMicrophoneMode` is the mode you chose in Control Center.
+- `activeMicrophoneMode` is the mode in use. It can differ from the chosen
+  mode when the app's audio route does not support the chosen mode.
+- Both are read-only class properties and key-value observable.
+- `showSystemUserInterface(.microphoneModes)` opens the system Microphone
+  Modes panel.
+
+The Mic Mode row under the microphone picker shows the mode in use. When it
+is not the mode you chose, the row shows it in orange with a note, for
+example "Voice Isolation chosen, Standard in use with this microphone."
+Open Microphone Modes… under it opens the system panel. A mode that a later
+macOS adds shows as "Unknown" with its raw value.
+
+It is not yet confirmed that a microphone mode applies to the audio the
+app records. Each take's log records both modes at the start of the take,
+in the `recording` category, so you can compare a take's sound with the
+mode that was in use.
+
 ## Recording
 
 Takes are QuickTime movies in `~/Movies/Notch Prompter/`, named with a
@@ -236,30 +263,31 @@ The Format control under the camera preview records each take as
 Horizontal (16:9) or Vertical (9:16). The choice is remembered, and it is
 locked while a take counts down, records, or saves.
 
-Vertical uses the camera's native portrait format when it has one. The
-MacBook Pro camera lists a 1080x1920 format, so a vertical take from it
-records the full 1080x1920 frame, with every video effect still available.
-The app switches the camera when you choose Vertical, and again when you
-change or reconnect the camera, not when you press Record. `NativeFormat`
-in the Kit picks the format: a 9:16 shape, at least 30 frames per second,
-every effect the session preset's format supports, and the most pixels.
-Horizontal, and a camera without such a format, use the format the session
-preset (`.high`) chose when the camera was added.
+The app chooses the camera's format for each shape itself. The MacBook Pro
+camera lists 1920x1080 and 1080x1920 formats, so a horizontal take records
+the full 1920x1080 frame and a vertical take the full 1080x1920 frame, with
+every video effect still available. The app switches the camera when you
+change the format, and again when you change or reconnect the camera, not
+when you press Record. `NativeFormat` in the Kit picks the format: the
+shape (16:9 or 9:16), at least 30 frames per second, every effect the
+camera's most capable format supports, and the most pixels, then the
+highest frame rate.
 
-macOS has no `.inputPriority` session preset, so setting a camera's format
-does not take it away from the preset. The `.high` preset may change the
-format again at any time. To keep the native format, the app holds the
-camera's configuration lock for as long as Vertical uses it. For
-Horizontal, or a camera without a native format, the app sets the
-remembered preset format back itself and releases the lock. It releases
-the lock before a camera leaves the session. When the app quits, the
-system releases the lock.
+The app does not use the session preset's choice when the camera has a
+format with the shape. macOS has no `.inputPriority` session preset, so the
+`.high` preset may change a camera's format at any time, and the app cannot
+know which format it will pick. A camera can also still be in a format the
+app set in an earlier run. To keep its chosen format, the app holds the
+camera's configuration lock while either shape uses a native format. It
+releases the lock before a camera leaves the session. When the app quits,
+the system releases the lock.
 
-A camera without a native portrait format, such as an iPhone as a
-Continuity Camera, keeps the cut: the take is cut from the centre of the
-camera's frame. On a 1920x1080 camera, a cut vertical take keeps the full
-height and is 608x1080. A camera that already has the format's shape, such
-as a 16:9 camera for Horizontal, records as it always did.
+A camera without a format of the take's shape keeps the cut: the app
+releases the lock, the session preset (`.high`) chooses the format, and the
+take is cut from the centre of the camera's frame. An iPhone as a
+Continuity Camera lists only landscape formats, so its vertical takes are
+cut. On a 1920x1080 camera, a cut vertical take keeps the full height and
+is 608x1080. A camera with only 4:3 formats is cut for both shapes.
 
 The preview shows the whole camera frame. With a native format that is the
 whole take, so nothing is dimmed. For a cut format, it dims what the take

@@ -7,6 +7,13 @@ All notable changes to this project are recorded here. The format follows
 
 ### Added
 
+- Microphone mode under the microphone picker. The Mic Mode row shows
+  whether the microphone is in Standard, Voice Isolation, or Wide Spectrum
+  mode, and Open Microphone Modes… opens the system panel. The app cannot
+  set the mode. When the mode in use is not the one chosen in Control
+  Center, the row says so in orange. Each take's log records both modes at
+  the start of the take. An optional Mic Modes toolbar button opens the
+  same panel; add it with Customize Toolbar.
 - Vertical takes use the camera's native portrait format when it has one.
   On the MacBook Pro camera a vertical take is now the full 1080x1920
   frame instead of a 608x1080 cut, the preview is not dimmed, and Center
@@ -61,6 +68,14 @@ All notable changes to this project are recorded here. The format follows
   right after setting it. The app now holds the lock while Vertical uses
   the native format, and sets the preset format back itself for
   Horizontal. The log says when a format does not hold after the change.
+- Horizontal takes could come out cropped after a run that ended in
+  Vertical. The app took the camera's format at launch to be the session
+  preset's choice, but the camera still held the portrait format from the
+  previous run, so Horizontal "went back" to 1080x1920. The app no longer
+  relies on the preset: it chooses and locks a 16:9 format for Horizontal
+  and a 9:16 format for Vertical, keeping every effect the camera's most
+  capable format supports. Only a camera with no format of the take's
+  shape uses the preset and the crop.
 
 ### Added
 
