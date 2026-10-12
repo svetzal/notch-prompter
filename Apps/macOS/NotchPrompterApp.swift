@@ -36,5 +36,9 @@ struct NotchPrompterApp: App {
                     .disabled(!model.prompter.isPrompterVisible)
             }
         }
+        Window("Voice Clean-up Chain", id: VoiceChainEditor.windowID) {
+            VoiceChainEditor(voice: model.voice)
+        }
+        .defaultSize(width: 760, height: 460)
     }
 }

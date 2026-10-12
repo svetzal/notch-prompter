@@ -12,7 +12,7 @@ scroll, and the recording. `CHARTER.md` sets the scope.
 
 | Path | What lives there |
 | --- | --- |
-| `Sources/NotchPrompterKit` | Functional core. Script parsing, prompter layout, the scroll engine, panel placement, the take state machine, the effects model, the video format crop and native format choice, file naming. No SwiftUI, AppKit, or AVFoundation. |
+| `Sources/NotchPrompterKit` | Functional core. Script parsing, prompter layout, the scroll engine, panel placement, the take state machine, the effects model, the video format crop and native format choice, file naming, the voice chain and its sync arithmetic. No SwiftUI, AppKit, or AVFoundation. |
 | `Tests/NotchPrompterKitTests` | Swift Testing suites for the Kit. |
 | `Apps/Shared/Gateways` | Thin adapters over AppKit, AVFoundation, and the file system. |
 | `Apps/Shared/Models` | Observable app models that run the Kit's logic against the gateways. |
@@ -60,7 +60,7 @@ Control-click the toolbar, or choose View > Customize Toolbar.
 | Where | Control |
 | --- | --- |
 | Left | Prompter (show or hide it), Rehearse |
-| Centre | Take status: Ready, the countdown, Rehearsing, or a red dot with the recording time. Saving… while the movie file closes. |
+| Centre | Take status: Ready, the countdown, Rehearsing, or a red dot with the recording time. Saving… while the movie file closes, then Cleaning up voice… while the voice chain runs. |
 | Right | Speed (− / wpm / +), Prompter Settings, Video Effects, Record |
 | Optional | Mic Modes, which opens the system Microphone Modes panel. It is not in the toolbar by default; add it with Customize Toolbar. |
 
@@ -70,8 +70,8 @@ system Video Effects panel. Record becomes Stop while a countdown, a run, or
 saving is under way. Each control's tooltip names its keyboard shortcut.
 
 The right column keeps the camera preview, the video format, the camera and
-microphone pickers, the microphone mode, the effects state, and a link to
-the last take.
+microphone pickers, the microphone mode, the effects state, the voice
+clean-up chain, and a link to the last take.
 
 ### Keys while the prompter shows
 
@@ -327,6 +327,79 @@ Two limits to know:
   (`centerStageRectOfInterest` is not available on macOS), so in a cut
   vertical take Center Stage can move you toward the dimmed sides. Turn
   Center Stage off for cut vertical takes if it does.
+
+## Voice clean-up
+
+Each take's audio can go through a chain of the Audio Unit effects
+installed on the Mac, after the take is recorded. The chain never runs
+live: plug-ins with look-ahead delay their output, which would put a live
+recording out of sync.
+
+### Build the chain
+
+1. In the Voice section of the right column, click Edit Chain….
+2. The left list shows the installed Audio Unit effects (type `aufx`),
+   grouped by maker. Double-click an effect, or select it and click Add to
+   Chain.
+3. Drag the entries to change their order. A take's audio goes through them
+   from top to bottom.
+4. Clear an entry's checkbox to bypass it. A bypassed plug-in keeps its
+   place and its settings.
+5. Click Settings… to open the plug-in in its own window, and set it up.
+   When you close the window, the app saves the settings. Before each
+   clean-up, the app also saves the settings of windows that are open.
+6. Turn on Clean up each take.
+
+The app keeps the chain, with each plug-in's settings, in
+`~/Library/Application Support/Notch Prompter/voice-chain.json`.
+
+A plug-in's window shows the plug-in's own view when it can, with a
+Parameters switch at the top for a plain list of its parameters. When the
+app cannot show the plug-in's view, the window shows the list. A plug-in in
+another process can take a few seconds to publish its parameters.
+
+### After each take
+
+When the chain is on and has an active plug-in, each take goes through it
+after the app saves the take and gives it its shape:
+
+1. The app renames the take to `<name>-original.mov`.
+2. The app decodes the audio to 48 kHz, runs it through the plug-ins faster
+   than real time, and encodes it to AAC at 48 kHz. It copies the video as
+   it is, without a new encode, and keeps the movie's metadata.
+3. The app saves the result under the take's own name. Finder shows it, and
+   the Last take link opens it.
+
+The toolbar shows "Cleaning up voice…" and Record waits until it is done.
+If the clean-up fails, the app puts the recorded take back under the take's
+name and says what went wrong. The take is never lost.
+
+Clean Up Again, under the last take, runs it through the chain again, for
+example after you change a plug-in's settings. It always reads the
+`-original`, so processing never stacks. Reveal Both shows the two files in
+Finder. For a take that you recorded with the chain off, the button is
+Clean Up Voice.
+
+### Sync
+
+Plug-ins with look-ahead, such as many noise and breath removers, delay
+their output by their latency. The app reads each plug-in's latency at
+48 kHz, removes the chain's total latency from the start of the processed
+audio, and processes that much extra at the end, so the processed audio is
+exactly as long as the original and every sound stays where it was against
+the picture. The movie keeps the original's duration.
+
+Each clean-up writes lines to the `recording` log category: the chain at
+the start, each plug-in's latency, and at the end the time it took, the
+frames in and out, and the latency removed.
+
+### Plug-ins run out of process
+
+Every plug-in runs in a separate system process, never inside the app. A
+plug-in that crashes cannot stop the app or lose a take, and the app's
+hardened runtime does not need to load other developers' code. A plug-in
+that the system will not run out of process shows "Not loadable" in the
+chain, and a take does not go through it.
 
 ## Signing
 

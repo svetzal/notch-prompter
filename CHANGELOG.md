@@ -7,6 +7,19 @@ All notable changes to this project are recorded here. The format follows
 
 ### Added
 
+- Voice clean-up. Edit Chain… in the new Voice section opens a window that
+  lists the Audio Unit effects installed on the Mac. Add them to a chain,
+  put them in order, bypass or remove them, and set each one up in its own
+  window, with a parameter list when its own view cannot be shown. The app
+  remembers the chain and each plug-in's settings. With Clean up each take
+  on, each take's audio goes through the chain after it is saved: the take
+  as recorded is kept as `<name>-original.mov`, and the processed take
+  keeps the take's name, with its video copied as it is and its sync exact.
+  The toolbar shows "Cleaning up voice…" until it is done. Clean Up Again
+  runs the last take through the chain again, always from the original, and
+  Reveal Both shows both files. Plug-ins run out of process only. If a
+  clean-up fails, the recorded take goes back under its name.
+
 - Microphone mode under the microphone picker. The Mic Mode row shows
   whether the microphone is in Standard, Voice Isolation, or Wide Spectrum
   mode, and Open Microphone Modes… opens the system panel. The app cannot

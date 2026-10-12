@@ -222,6 +222,9 @@ private struct RecordButton: View {
         if !model.capture.access.canUseCamera {
             return "Record needs camera access"
         }
+        if model.voice.isCleaningUp {
+            return "Record waits until the voice clean-up is done"
+        }
         return "Count down, then record a take with the prompter (\(Shortcuts.record.label))"
     }
 }

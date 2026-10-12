@@ -12,8 +12,9 @@ and the effects facts.
 
 - Logic belongs in `Sources/NotchPrompterKit`: script parsing, layout, the
   scroll engine, panel placement, the take state machine, the effects model,
-  and naming. It must not import SwiftUI, AppKit, or AVFoundation. It is the
-  functional core, tested with `swift test` alone.
+  naming, and the voice chain with its file names, latency arithmetic, and
+  parameter controls. It must not import SwiftUI, AppKit, or AVFoundation.
+  It is the functional core, tested with `swift test` alone.
 - `Apps/Shared/Gateways` holds thin adapters over AppKit, AVFoundation, and
   `FileManager`. Keep logic out of them. If a gateway grows a decision, move
   the decision into the Kit and test it there.
@@ -22,8 +23,8 @@ and the effects facts.
   commands. Keep that split.
 - `Apps/Shared/Views` holds SwiftUI. `Apps/macOS` stays thin.
 - The take controls are in the main window's toolbar (`MainToolbar`). The
-  session column holds the camera, effects state, and last take only; do not
-  add run controls back to it. The Prompter menu and the toolbar tooltips
+  session column holds the camera, effects state, the voice chain, and the
+  last take only; do not add run controls back to it. The Prompter menu and the toolbar tooltips
   share their shortcuts through `Shortcuts`, and the toolbar's status comes
   from `TakeSession.status(at:)` in the Kit.
 - The prompter's geometry (frame, top inset, corner radii) is decided by
@@ -96,6 +97,43 @@ and the effects facts.
   right shape on every camera in use.
 - `centerStageRectOfInterest` is unavailable on macOS. Do not try to steer
   Center Stage to the crop.
+
+## Voice clean-up: rules
+
+`VoiceModel` runs each saved take through the chain of installed Audio Unit
+effects. `TakeVoiceCleanUp` does the file work, `VoiceProcessor` and
+`VoiceRenderJob` the render. The Kit decides names (`VoiceCleanUpFiles`) and
+sync (`LatencyCompensation`, `SampleContinuity`).
+
+- Load plug-ins out of process only. `AudioUnits.load` asks for
+  `.loadOutOfProcess` and refuses a unit whose `isLoadedInProcess` is true,
+  because the system can ignore the request. Do not load in process, and do
+  not add `com.apple.security.cs.disable-library-validation`; entitlement
+  changes are Stacey's decision.
+- Never lose the recorded take. The first clean-up renames the take to
+  `<name>-original.mov` before it writes anything. The result goes to a
+  hidden working file and replaces the take's name only when it is complete.
+  On any failure, `VoiceCleanUpFiles.recovery` puts the recorded take back
+  under the take's name, or keeps both files when the name still holds an
+  earlier result.
+- Always process from the `-original`, never from an earlier result, so
+  processing never stacks.
+- Keep sync exact. Read each plug-in's `latency` after the engine starts
+  (before that, a plug-in can report it at another sample rate). Trim the
+  chain's total latency from the start, render the same number of frames
+  past the end on silence, and stamp the output from the first decoded
+  frame's presentation time. End the writer's session at the source's
+  duration, with the source's movie time scale.
+- Copy the video with `outputSettings: nil`. Never re-encode it.
+- A plug-in that refuses the take's format would raise an exception when
+  the engine connects it. Set each bus format first, and report a refusal
+  as an error.
+- No live processing while recording, and no audio effects made by the app.
+  The charter rules them out.
+- After changing the render path, check sync with a scratch harness that
+  compiles the gateway files against the Kit: a test movie with clicks at
+  known times must keep each click within one millisecond, keep its
+  duration, and keep its video packets.
 
 ## Concurrency
 

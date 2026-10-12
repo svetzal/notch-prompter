@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreAudioKit
 import NotchPrompterKit
 
 enum AudioUnitLoadError: LocalizedError {
@@ -44,7 +45,7 @@ enum AudioUnits {
 
     /// Loads `component` in a separate process and gives it `state`, the
     /// settings saved from it before, if any.
-    static func load(_ component: AudioUnitComponent, state: Data? = nil) async throws -> AVAudioUnit {
+    static func load(_ component: AudioUnitComponent, state: Data? = nil) async throws -> sending AVAudioUnit {
         let description = AudioComponentDescription(
             componentType: component.type,
             componentSubType: component.subtype,
@@ -67,6 +68,19 @@ enum AudioUnits {
             unit.auAudioUnit.fullState = settings
         }
         return unit
+    }
+
+    /// The plug-in's own view, or `nil` when it has none or it cannot be shown.
+    @MainActor
+    static func viewController(for unit: AVAudioUnit) async -> NSViewController? {
+        let audioUnit = unit.auAudioUnit
+        return await withCheckedContinuation { continuation in
+            // Called on a queue of the framework's choosing; the controller
+            // is only handed on to the main actor here.
+            audioUnit.requestViewController { controller in
+                continuation.resume(returning: controller)
+            }
+        }
     }
 
     /// The plug-in's current settings, as a binary property list.
