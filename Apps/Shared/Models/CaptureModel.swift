@@ -4,7 +4,8 @@ import NotchPrompterKit
 import Observation
 import os
 
-/// The camera, the microphone, their permissions, the video effects, and the video format.
+/// The camera, the microphone, their permissions, the video effects, the
+/// microphone mode, and the video format.
 @MainActor
 @Observable
 final class CaptureModel {
@@ -17,6 +18,8 @@ final class CaptureModel {
     /// The take shape the session was last configured for.
     @ObservationIgnored private var activeVideoFormat: VideoFormat?
     private(set) var effects = EffectsPresentation(.noCamera)
+    /// The system microphone mode, chosen and in use. Read-only to the app.
+    private(set) var microphoneMode = MicrophoneModePresentation(preferred: .standard, active: .standard)
     /// The camera's current frame size, `nil` without a camera.
     private(set) var cameraSize: PixelSize?
     /// The last take that finished writing.
@@ -68,6 +71,7 @@ final class CaptureModel {
     @ObservationIgnored let gateway = CaptureSessionGateway()
     @ObservationIgnored private let discovery = DeviceDiscovery()
     @ObservationIgnored private let effectsGateway = EffectsGateway()
+    @ObservationIgnored private let microphoneModeGateway = MicrophoneModeGateway()
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var configuration: Task<Void, Never>?
     @ObservationIgnored private var hasStarted = false
@@ -91,6 +95,8 @@ final class CaptureModel {
         videoFormat = defaults.string(forKey: Keys.videoFormat).flatMap(VideoFormat.init(rawValue:)) ?? .horizontal
         discovery.onChange = { [weak self] in self?.refreshDevices() }
         effectsGateway.onChange = { [weak self] in self?.refreshCameraState() }
+        microphoneModeGateway.onChange = { [weak self] in self?.refreshMicrophoneMode() }
+        refreshMicrophoneMode()
         outcomeListener = Task { [weak self, outcomes = gateway.recordingOutcomes] in
             for await outcome in outcomes {
                 await self?.recordingFinished(outcome)
@@ -190,6 +196,8 @@ final class CaptureModel {
             }
             // The camera's format may have changed; the preview and the effects read it again.
             self?.refreshCameraState()
+            // A new microphone may not support the chosen mode.
+            self?.refreshMicrophoneMode()
         }
     }
 
@@ -238,6 +246,19 @@ final class CaptureModel {
 
     func showVideoEffectsPanel() {
         effectsGateway.showVideoEffectsPanel()
+    }
+
+    // MARK: - Microphone mode
+
+    private func refreshMicrophoneMode() {
+        microphoneMode = MicrophoneModePresentation(
+            preferred: microphoneModeGateway.preferred,
+            active: microphoneModeGateway.active
+        )
+    }
+
+    func showMicrophoneModesPanel() {
+        microphoneModeGateway.showMicrophoneModesPanel()
     }
 
     // MARK: - Recording
@@ -312,6 +333,7 @@ extension CaptureModel: TakeRecorder {
                 let crop = try await gateway.startRecording(to: RecordingFolder.url.appending(path: name), format: format)
                 Self.logStart(of: crop)
                 Self.logEdgeLight(effectsGateway.snapshot.edgeLight)
+                Self.logMicrophoneMode(preferred: microphoneModeGateway.preferred, active: microphoneModeGateway.active)
                 if !wantsRecording {
                     await gateway.stopRecording()
                 }
@@ -346,6 +368,17 @@ extension CaptureModel: TakeRecorder {
             Edge Light at take start: enabled \(reading.isEnabled, privacy: .public), \
             active \(reading.isActive, privacy: .public), \
             format supported \(reading.isSupported, privacy: .public)
+            """)
+    }
+
+    /// Read at take start, not from the window's copy, so the log has the
+    /// mode with the take's audio route in place. Whether the mode applies
+    /// to a capture session's recording is still to be confirmed; logging
+    /// both values lets a take's log answer that.
+    private static func logMicrophoneMode(preferred: MicrophoneMode, active: MicrophoneMode) {
+        Logger.recording.notice("""
+            Microphone mode at take start: preferred \(preferred.displayName, privacy: .public), \
+            active \(active.displayName, privacy: .public)
             """)
     }
 

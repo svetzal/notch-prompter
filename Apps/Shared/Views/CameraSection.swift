@@ -1,7 +1,8 @@
 import NotchPrompterKit
 import SwiftUI
 
-/// Permission notices, the preview, the video format, and the device pickers.
+/// Permission notices, the preview, the video format, the device pickers,
+/// and the microphone mode.
 struct CameraSection: View {
 
     let capture: CaptureModel
@@ -45,6 +46,9 @@ struct CameraSection: View {
                 }
             }
             .disabled(!capture.access.canUseMicrophone || capture.isConfigurationLocked)
+            MicrophoneModeRow(mode: capture.microphoneMode)
+            Button("Open Microphone Modes…") { capture.showMicrophoneModesPanel() }
+                .help("Open the system Microphone Modes panel: Standard, Voice Isolation, and Wide Spectrum")
         }
     }
 
@@ -99,6 +103,26 @@ private struct KeptRegionOverlay: View {
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+}
+
+/// The system microphone mode in use. When it is not the mode chosen in
+/// Control Center, the row says so in orange rather than hiding it.
+private struct MicrophoneModeRow: View {
+
+    let mode: MicrophoneModePresentation
+
+    var body: some View {
+        LabeledContent {
+            Text(mode.label)
+                .foregroundStyle(mode.isMismatched ? .orange : .secondary)
+        } label: {
+            Text("Mic Mode")
+            if let note = mode.note {
+                Text(note)
+            }
+        }
+        .help("Set in Control Center. Notch Prompter can show the mode but not change it.")
     }
 }
 

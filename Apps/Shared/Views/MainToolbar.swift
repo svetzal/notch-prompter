@@ -6,7 +6,8 @@ import SwiftUI
 /// Leading: show or hide the prompter, and rehearse. Centre: the take's
 /// status. Trailing: speed, prompter settings, the system Video Effects
 /// panel, and Record, which becomes Stop while a run is under way. People
-/// can rearrange it with Customize Toolbar.
+/// can rearrange it with Customize Toolbar, and add the optional Microphone
+/// Modes button there.
 struct MainToolbar: CustomizableToolbarContent {
 
     let model: AppModel
@@ -34,6 +35,16 @@ struct MainToolbar: CustomizableToolbarContent {
                 Label("Video Effects", systemImage: "camera.filters")
             }
             .help("Open the system Video Effects panel: Portrait, Studio Light, Background, and Edge Light")
+        }
+        // Optional: off by default, so the toolbar stays uncrowded. People
+        // can add it with Customize Toolbar.
+        ToolbarItem(id: "microphoneModes", placement: .primaryAction, showsByDefault: false) {
+            Button {
+                model.capture.showMicrophoneModesPanel()
+            } label: {
+                Label("Mic Modes", systemImage: "waveform.and.mic")
+            }
+            .help("Open the system Microphone Modes panel: Standard, Voice Isolation, and Wide Spectrum")
         }
         ToolbarItem(id: "record", placement: .primaryAction) {
             RecordButton(model: model)
