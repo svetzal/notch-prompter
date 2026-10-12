@@ -7,8 +7,17 @@ import Observation
 final class AppModel {
 
     let library: ScriptLibrary
+    let prompter: PrompterController
 
-    init(library: ScriptLibrary = ScriptLibrary()) {
+    init(library: ScriptLibrary = ScriptLibrary(), prompter: PrompterController = PrompterController()) {
         self.library = library
+        self.prompter = prompter
+        prompter.setDocument(library.document)
+        prompter.scriptTitle = library.selectedTitle
+        library.onChange = { [weak prompter, weak library] in
+            guard let prompter, let library else { return }
+            prompter.setDocument(library.document)
+            prompter.scriptTitle = library.selectedTitle
+        }
     }
 }

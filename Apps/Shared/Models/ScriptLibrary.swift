@@ -18,18 +18,25 @@ final class ScriptLibrary {
 
     private(set) var folder: URL
     private(set) var scripts: [Script] = []
-    private(set) var selectedFileName: String?
+    private(set) var selectedFileName: String? {
+        didSet { onChange?() }
+    }
     private(set) var isDirty = false
     var errorMessage: String?
 
     /// The editor buffer for the selected script.
     var text: String = "" {
         didSet {
-            guard text != oldValue, selectedFileName != nil else { return }
+            guard text != oldValue else { return }
+            onChange?()
+            guard selectedFileName != nil else { return }
             isDirty = true
             scheduleAutosave()
         }
     }
+
+    /// Called when the text or the selected script changes.
+    @ObservationIgnored var onChange: (@MainActor () -> Void)?
 
     /// The prompter content for the editor buffer, including unsaved edits.
     var document: PrompterDocument {

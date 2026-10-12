@@ -19,6 +19,19 @@ struct NotchPrompterApp: App {
                 Button("Save") { model.library.saveNow() }
                     .keyboardShortcut("s", modifiers: .command)
             }
+            CommandMenu("Prompter") {
+                Button(model.prompter.isPrompterVisible ? "Hide Prompter" : "Show Prompter") {
+                    model.prompter.togglePrompter()
+                }
+                .keyboardShortcut("p", modifiers: [.command, .shift])
+                .disabled(!(model.prompter.session.phase == .hidden || model.prompter.session.phase == .ready))
+                Button("Rehearse") { model.prompter.rehearse() }
+                    .keyboardShortcut("r", modifiers: [.command, .shift])
+                    .disabled(!model.prompter.session.canBegin)
+                Button("Stop") { model.prompter.stop() }
+                    .keyboardShortcut(".", modifiers: .command)
+                    .disabled(!model.prompter.isPrompterVisible)
+            }
         }
     }
 }

@@ -47,3 +47,8 @@ file_length:
 large_tuple:
   warning: 3
   error: 4
+
+# A flat switch that dispatches commands is easier to read than the same
+# switch split up to satisfy a branch count.
+cyclomatic_complexity:
+  ignores_case_statements: true

@@ -10,8 +10,14 @@ struct RootView: View {
             ScriptSidebar(library: model.library)
                 .navigationSplitViewColumnWidth(min: 180, ideal: 220)
         } detail: {
-            ScriptEditor(library: model.library, wordsPerMinute: 140)
-                .navigationTitle(model.library.selectedTitle ?? "Notch Prompter")
+            HStack(spacing: 0) {
+                ScriptEditor(library: model.library, wordsPerMinute: model.prompter.settings.wordsPerMinute)
+                    .frame(minWidth: 360)
+                Divider()
+                SessionColumn(model: model)
+                    .frame(width: 340)
+            }
+            .navigationTitle(model.library.selectedTitle ?? "Notch Prompter")
         }
         .alert("Something went wrong", isPresented: hasError) {
             Button("OK") { model.library.errorMessage = nil }
