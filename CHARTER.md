@@ -33,12 +33,21 @@ scroll, and the recording.
   Effects panel.
 - Local recording of video and audio to a movie file. The system applies its
   video effects before the app gets the frames, so recordings include them.
+- Horizontal (16:9) or vertical (9:16) takes.
+- The state of the system microphone mode (Standard, Voice Isolation, Wide
+  Spectrum), with a button that opens the system Microphone Modes panel.
+- Voice clean-up applied to each take: a chain of the Audio Unit plug-ins
+  installed on the Mac, run over the take's audio after it is recorded. The
+  unprocessed take is kept beside the processed one.
 
 ## Out of scope
 
 - Background or lighting effects that the app makes itself (Vision and Core
   Image).
-- Editing recorded video.
+- Editing recorded video. Voice clean-up of a whole take is the one
+  exception; cutting, trimming, and mixing are still out.
+- Live audio processing while recording, and audio effects that the app makes
+  itself. The chain uses installed plug-ins only.
 - Uploading or publishing.
 - Scrolling that follows your voice.
 - iOS and iPadOS targets.
@@ -62,3 +71,17 @@ From the macOS 27 SDK (`AVCaptureDevice.h`):
   mode. The system draws it on a display, not in the camera image.
 - `showSystemUserInterface(.videoEffects)` opens the system Video Effects
   panel.
+- The microphone mode is read-only. `preferredMicrophoneMode` is the user's
+  choice in Control Center, and `activeMicrophoneMode` is the mode in use,
+  which can differ when the audio route does not support the choice.
+  `showSystemUserInterface(.microphoneModes)` opens the system panel.
+
+From AVFAudio and AudioToolbox:
+
+- `AVAudioUnitComponentManager` lists the installed Audio Unit effects, and
+  `AVAudioUnit.instantiate(with:options:)` loads one.
+  `kAudioComponentInstantiation_LoadOutOfProcess` loads it in a separate
+  process, so a plug-in crash does not stop the app.
+- `AVAudioEngine` manual rendering mode runs audio through a chain of
+  plug-ins faster than real time. This is why the chain runs after the take:
+  plug-ins with look-ahead latency would put a live recording out of sync.
