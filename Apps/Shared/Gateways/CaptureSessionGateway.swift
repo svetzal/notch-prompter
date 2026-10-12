@@ -18,12 +18,17 @@ enum CaptureError: LocalizedError {
 /// The camera format a configuration settled on, for the log.
 struct CameraFormatSwitch: Sendable {
     let videoFormat: VideoFormat
-    /// The format the session preset chose.
+    /// The format the session preset chose when the camera was added.
     let presetSize: PixelSize
-    /// The format the camera runs in now.
+    /// The format the camera was asked for.
+    let requestedSize: PixelSize
+    /// The format the camera runs in now, read after the configuration commits.
     let size: PixelSize
-    /// Whether the camera switched to a format with the take's shape.
+    /// Whether the camera was asked for a format with the take's shape.
     let isNative: Bool
+    /// Whether the camera is in the format it was asked for. False means
+    /// something changed it back between setting it and the commit.
+    let isRequestedFormat: Bool
 }
 
 /// How a recording ended.
@@ -58,6 +63,17 @@ final class CaptureSessionGateway: NSObject, @unchecked Sendable {
     /// The take shape the camera's format was last chosen for. A change of
     /// camera chooses again.
     private var appliedVideoFormat: VideoFormat?
+    /// The camera's format as the `.high` preset chose it, read when its
+    /// input was added and before any switch. Horizontal and cameras
+    /// without a native portrait format go back to it.
+    private var presetFormat: AVCaptureDevice.Format?
+    /// The camera whose configuration lock this gateway holds. On macOS the
+    /// session stays on `.high` (there is no `.inputPriority` preset), and
+    /// that preset may change its inputs' formats as it likes. Holding the
+    /// lock is what keeps a native format in place. It is held only while
+    /// Vertical uses a native format, and released before the camera leaves
+    /// the session and when the session stops.
+    private var lockedCamera: AVCaptureDevice?
 
     override init() {
         (recordingOutcomes, outcomeContinuation) = AsyncStream.makeStream()
@@ -72,6 +88,9 @@ final class CaptureSessionGateway: NSObject, @unchecked Sendable {
     func use(videoDeviceID: String?, audioDeviceID: String?, videoFormat: VideoFormat) async throws -> CameraFormatSwitch? {
         let formatSwitch = try await onQueue { () -> CameraFormatSwitch? in
             let cameraChanged = try self.configureInputs(videoDeviceID: videoDeviceID, audioDeviceID: audioDeviceID)
+            if cameraChanged {
+                self.rememberPresetFormat()
+            }
             guard cameraChanged || videoFormat != self.appliedVideoFormat else { return nil }
             return try self.applyCameraFormat(for: videoFormat)
         }
@@ -111,6 +130,9 @@ final class CaptureSessionGateway: NSObject, @unchecked Sendable {
 
     func stop() async {
         try? await onQueue {
+            self.releaseCameraLock()
+            // Without the lock the format is no longer held; choose it again on the next use.
+            self.appliedVideoFormat = nil
             self.session.stopRunning()
         }
     }
@@ -175,41 +197,67 @@ final class CaptureSessionGateway: NSObject, @unchecked Sendable {
         return videoInput !== previousVideoInput
     }
 
-    /// Chooses the camera's format for `videoFormat`. Must run on `queue`.
+    /// Reads the camera's preset format, after the configuration that added
+    /// its input has committed. Must run on `queue`.
+    private func rememberPresetFormat() {
+        presetFormat = videoInput?.device.activeFormat
+    }
+
+    /// Puts the camera in the format for `videoFormat`. Must run on `queue`.
     ///
-    /// The session preset's format comes first: it is what Horizontal and
-    /// cameras without a native portrait format use, and its effects are the
-    /// ones a native format must keep. When `NativeFormat` finds a format
-    /// with the take's shape, the camera switches to it, and the session
-    /// preset becomes `.inputPriority`. Setting `.high` again later hands the
-    /// format back to the preset.
+    /// The preset format, remembered when the camera was added, is the
+    /// baseline: Horizontal and cameras without a native portrait format use
+    /// it, and a native format must keep its effects. With a native format,
+    /// the camera switches to it inside one configuration block and keeps
+    /// its configuration lock, so the `.high` preset cannot take it back.
+    /// Without one, the camera goes back to the preset format explicitly and
+    /// the lock is released; nothing relies on the preset to put it back.
     private func applyCameraFormat(for videoFormat: VideoFormat) throws -> CameraFormatSwitch? {
-        guard let device = videoInput?.device else {
+        guard let device = videoInput?.device, let presetFormat else {
             appliedVideoFormat = videoFormat
             return nil
         }
-        if session.sessionPreset != .high, session.canSetSessionPreset(.high) {
-            session.sessionPreset = .high
-        }
-        let presetFormat = device.activeFormat
         let formats = device.formats
         let native = NativeFormat.index(
             for: videoFormat,
             in: formats.map(CameraFormat.init),
             keeping: CameraFormat(presetFormat).supportedEffects
         )
-        if let native {
-            try device.lockForConfiguration()
-            device.activeFormat = formats[native]
-            device.unlockForConfiguration()
+        let requested = native.map { formats[$0] } ?? presetFormat
+
+        session.beginConfiguration()
+        do {
+            if lockedCamera !== device {
+                try device.lockForConfiguration()
+                lockedCamera = device
+            }
+        } catch {
+            session.commitConfiguration()
+            throw error
         }
+        device.activeFormat = requested
+        if native == nil {
+            releaseCameraLock()
+        }
+        session.commitConfiguration()
+
         appliedVideoFormat = videoFormat
+        let current = device.activeFormat
         return CameraFormatSwitch(
             videoFormat: videoFormat,
             presetSize: presetFormat.pixelSize,
-            size: device.activeFormat.pixelSize,
-            isNative: native != nil
+            requestedSize: requested.pixelSize,
+            size: current.pixelSize,
+            isNative: native != nil,
+            isRequestedFormat: current == requested
         )
+    }
+
+    /// Releases the camera's configuration lock, if this gateway holds one.
+    /// Must run on `queue`.
+    private func releaseCameraLock() {
+        lockedCamera?.unlockForConfiguration()
+        lockedCamera = nil
     }
 
     /// Swaps one input for another. Must run on `queue`, inside a configuration block.
@@ -218,6 +266,10 @@ final class CaptureSessionGateway: NSObject, @unchecked Sendable {
             return current
         }
         if let current {
+            // Never leave a camera locked once it is out of the session.
+            if current.device === lockedCamera {
+                releaseCameraLock()
+            }
             session.removeInput(current)
         }
         guard let deviceID else { return nil }

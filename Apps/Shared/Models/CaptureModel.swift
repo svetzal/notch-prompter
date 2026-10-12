@@ -195,6 +195,14 @@ final class CaptureModel {
 
     private static func logFormatSwitch(_ formatSwitch: CameraFormatSwitch) {
         let format = formatSwitch.videoFormat.rawValue
+        guard formatSwitch.isRequestedFormat else {
+            Logger.recording.notice("""
+                Camera format did not hold for \(format, privacy: .public) takes: asked for \
+                \(formatSwitch.requestedSize, privacy: .public), but after the configuration committed \
+                the camera runs \(formatSwitch.size, privacy: .public)
+                """)
+            return
+        }
         if formatSwitch.isNative {
             Logger.recording.notice("""
                 Camera switched from the session preset's \(formatSwitch.presetSize, privacy: .public) \

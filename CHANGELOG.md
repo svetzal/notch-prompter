@@ -52,6 +52,16 @@ All notable changes to this project are recorded here. The format follows
   session column keeps the camera, the effects state, and the last take.
 - The main window is at least 1000 points wide, so the toolbar fits.
 
+### Fixed
+
+- After quick Horizontal and Vertical changes, the preview could show the
+  landscape image inside a portrait frame while the log said the camera
+  had switched to its native format. On macOS the `.high` session preset
+  could take the format back, because the app released the camera's lock
+  right after setting it. The app now holds the lock while Vertical uses
+  the native format, and sets the preset format back itself for
+  Horizontal. The log says when a format does not hold after the change.
+
 ### Added
 
 - Script library: Markdown scripts in `~/Documents/Notch Prompter/Scripts`,

@@ -52,10 +52,18 @@ and the effects facts.
   `NativeFormat` in the Kit decides which format (9:16 shape, at least 30
   fps, keeps every effect the preset's format supports, most pixels). The
   session gateway applies it in `applyCameraFormat`, on the session queue,
-  when the format picker or the camera changes, never at Record. It sets
-  the preset to `.high` first, then sets `activeFormat` under
-  `lockForConfiguration`, which makes the preset `.inputPriority`.
-  Horizontal and cameras without a native format stay on `.high`.
+  when the format picker or the camera changes, never at Record.
+- `.inputPriority` is unavailable on macOS. The session stays on `.high`,
+  which may change its inputs' formats at any time, so setting
+  `activeFormat` alone does not last. The device lock is what keeps a
+  native format: set `activeFormat` inside one session
+  `beginConfiguration`/`commitConfiguration` block with the device locked,
+  and keep the lock while Vertical uses the native format. For Horizontal
+  or a camera without one, set `activeFormat` back to the preset format
+  remembered when the input was added (never rely on the preset to do it),
+  then unlock. Release the lock before the camera's input is removed or
+  replaced and when the session stops. Never leave a device locked that is
+  not in the session.
 - The crop geometry (kept size, centring, even sizes, the preview's kept
   region) is `VideoCrop` in the Kit. The gateways only apply it. It is the
   path for cameras without a native portrait format; with one, the source

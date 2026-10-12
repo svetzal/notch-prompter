@@ -243,8 +243,16 @@ The app switches the camera when you choose Vertical, and again when you
 change or reconnect the camera, not when you press Record. `NativeFormat`
 in the Kit picks the format: a 9:16 shape, at least 30 frames per second,
 every effect the session preset's format supports, and the most pixels.
-Horizontal, and a camera without such a format, use the session preset
-(`.high`).
+Horizontal, and a camera without such a format, use the format the session
+preset (`.high`) chose when the camera was added.
+
+macOS has no `.inputPriority` session preset, so setting a camera's format
+does not take it away from the preset. The `.high` preset may change the
+format again at any time. To keep the native format, the app holds the
+camera's configuration lock for as long as Vertical uses it. For
+Horizontal, or a camera without a native format, the app sets the
+remembered preset format back itself and releases the lock. It releases
+the lock before a camera leaves the session and when the session stops.
 
 A camera without a native portrait format, such as an iPhone as a
 Continuity Camera, keeps the cut: the take is cut from the centre of the
