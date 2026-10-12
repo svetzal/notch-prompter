@@ -7,6 +7,14 @@ All notable changes to this project are recorded here. The format follows
 
 ### Added
 
+- Vertical takes use the camera's native portrait format when it has one.
+  On the MacBook Pro camera a vertical take is now the full 1080x1920
+  frame instead of a 608x1080 cut, the preview is not dimmed, and Center
+  Stage frames for the portrait image. The camera switches when you choose
+  the format or change the camera, not at Record. Cameras without a
+  portrait format, such as an iPhone, keep the centre cut. The log says
+  which format the camera switched to and, at each take start, whether the
+  take is native or cut.
 - Edge Light in the effects panel (macOS 26.2 and later). The row shows
   whether the camera's format supports it, whether Control Center has it
   on, and whether it is showing. When it is on but not showing, a note

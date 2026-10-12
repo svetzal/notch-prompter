@@ -14,6 +14,8 @@ final class CaptureModel {
     private(set) var microphones: [CaptureDeviceInfo] = []
     private(set) var activeCameraID: String?
     private(set) var activeMicrophoneID: String?
+    /// The take shape the session was last configured for.
+    @ObservationIgnored private var activeVideoFormat: VideoFormat?
     private(set) var effects = EffectsPresentation(.noCamera)
     /// The camera's current frame size, `nil` without a camera.
     private(set) var cameraSize: PixelSize?
@@ -39,9 +41,14 @@ final class CaptureModel {
         }
     }
 
-    /// The shape the next take records in.
+    /// The shape the next take records in. Changing it switches the camera
+    /// to a native format for that shape, when it has one, right away rather
+    /// than at Record, so the preview shows what the take will record.
     var videoFormat: VideoFormat {
-        didSet { defaults.set(videoFormat.rawValue, forKey: Keys.videoFormat) }
+        didSet {
+            defaults.set(videoFormat.rawValue, forKey: Keys.videoFormat)
+            applySelection()
+        }
     }
 
     /// The part of the camera's frame the next take keeps, for the preview.
@@ -161,9 +168,12 @@ final class CaptureModel {
             available: microphones.map(\.id),
             fallbacks: [discovery.defaultMicrophoneID]
         ) : nil
-        guard camera != activeCameraID || microphone != activeMicrophoneID || configuration == nil else { return }
+        let format = videoFormat
+        guard camera != activeCameraID || microphone != activeMicrophoneID || format != activeVideoFormat
+            || configuration == nil else { return }
         activeCameraID = camera
         activeMicrophoneID = microphone
+        activeVideoFormat = format
         effectsGateway.follow(deviceID: camera)
 
         let previous = configuration
@@ -171,10 +181,34 @@ final class CaptureModel {
         configuration = Task { [weak self] in
             await previous?.value
             do {
-                try await gateway.use(videoDeviceID: camera, audioDeviceID: microphone)
+                let formatSwitch = try await gateway.use(videoDeviceID: camera, audioDeviceID: microphone, videoFormat: format)
+                if let formatSwitch {
+                    Self.logFormatSwitch(formatSwitch)
+                }
             } catch {
                 self?.errorMessage = error.localizedDescription
             }
+            // The camera's format may have changed; the preview and the effects read it again.
+            self?.refreshCameraState()
+        }
+    }
+
+    private static func logFormatSwitch(_ formatSwitch: CameraFormatSwitch) {
+        let format = formatSwitch.videoFormat.rawValue
+        if formatSwitch.isNative {
+            Logger.recording.notice("""
+                Camera switched from the session preset's \(formatSwitch.presetSize, privacy: .public) \
+                to its native \(formatSwitch.size, privacy: .public) format for \(format, privacy: .public) takes
+                """)
+        } else if formatSwitch.videoFormat == .vertical {
+            Logger.recording.notice("""
+                Camera has no native vertical format; it uses the session preset's \
+                \(formatSwitch.size, privacy: .public) and each vertical take is cropped
+                """)
+        } else {
+            Logger.recording.notice(
+                "Camera uses the session preset's \(formatSwitch.size, privacy: .public) for \(format, privacy: .public) takes"
+            )
         }
     }
 
@@ -282,7 +316,9 @@ extension CaptureModel: TakeRecorder {
 
     private static func logStart(of crop: VideoCrop) {
         let format = crop.format.rawValue
-        if crop.needsCrop {
+        if !crop.needsCrop, crop.format == .vertical {
+            Logger.recording.notice("vertical take: native \(crop.source, privacy: .public) format; no crop")
+        } else if crop.needsCrop {
             Logger.recording.notice("""
                 \(format, privacy: .public) take: camera \(crop.source, privacy: .public), \
                 encoder asked for \(crop.output, privacy: .public) with aspect fill

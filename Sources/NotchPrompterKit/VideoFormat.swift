@@ -4,9 +4,10 @@ import Foundation
 /// The shape of the movie a take records: wide for most video, tall for
 /// phone-first video.
 ///
-/// The camera is never turned. A tall take is cut from the centre of the
-/// camera's frame, so on a landscape laptop camera it keeps the full height
-/// and loses width.
+/// The camera is never turned. A tall take uses the camera's native portrait
+/// format when it has one (see ``NativeFormat``). Otherwise it is cut from
+/// the centre of the camera's frame, so on a landscape camera it keeps the
+/// full height and loses width.
 public enum VideoFormat: String, CaseIterable, Identifiable, Sendable {
     /// 16:9.
     case horizontal

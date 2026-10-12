@@ -48,17 +48,28 @@ and the effects facts.
 
 ## Video format: how a take gets its shape
 
+- Vertical first uses the camera's native portrait format, when it has one.
+  `NativeFormat` in the Kit decides which format (9:16 shape, at least 30
+  fps, keeps every effect the preset's format supports, most pixels). The
+  session gateway applies it in `applyCameraFormat`, on the session queue,
+  when the format picker or the camera changes, never at Record. It sets
+  the preset to `.high` first, then sets `activeFormat` under
+  `lockForConfiguration`, which makes the preset `.inputPriority`.
+  Horizontal and cameras without a native format stay on `.high`.
 - The crop geometry (kept size, centring, even sizes, the preview's kept
-  region) is `VideoCrop` in the Kit. The gateways only apply it.
-- The primary path is the movie output's video settings: width, height,
+  region) is `VideoCrop` in the Kit. The gateways only apply it. It is the
+  path for cameras without a native portrait format; with one, the source
+  already has the shape and `needsCrop` is false.
+- The crop path is the movie output's video settings: width, height,
   and `AVVideoScalingModeResizeAspectFill`, set at the start of each take.
   When no crop is needed, leave the connection at the session preset's own
   settings. Do not rely on `AVVideoCleanApertureKey`; players and upload
   services ignore it.
 - Keep the self-check after each take (`CaptureModel.confirmShape`): it
   reads the movie's displayed size and re-crops by export when the shape is
-  wrong. Its log line says which path ran. Do not remove it until a live
-  take has shown the primary path works on every camera in use.
+  wrong. Its log line says which path ran. Do not remove it until live
+  takes have shown the native format and the encoder crop both give the
+  right shape on every camera in use.
 - `centerStageRectOfInterest` is unavailable on macOS. Do not try to steer
   Center Stage to the crop.
 

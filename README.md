@@ -12,7 +12,7 @@ scroll, and the recording. `CHARTER.md` sets the scope.
 
 | Path | What lives there |
 | --- | --- |
-| `Sources/NotchPrompterKit` | Functional core. Script parsing, prompter layout, the scroll engine, panel placement, the take state machine, the effects model, the video format crop, file naming. No SwiftUI, AppKit, or AVFoundation. |
+| `Sources/NotchPrompterKit` | Functional core. Script parsing, prompter layout, the scroll engine, panel placement, the take state machine, the effects model, the video format crop and native format choice, file naming. No SwiftUI, AppKit, or AVFoundation. |
 | `Tests/NotchPrompterKitTests` | Swift Testing suites for the Kit. |
 | `Apps/Shared/Gateways` | Thin adapters over AppKit, AVFoundation, and the file system. |
 | `Apps/Shared/Models` | Observable app models that run the Kit's logic against the gateways. |
@@ -234,17 +234,30 @@ while a take records.
 
 The Format control under the camera preview records each take as
 Horizontal (16:9) or Vertical (9:16). The choice is remembered, and it is
-locked while a take counts down, records, or saves. The camera is never
-turned: a take is cut from the centre of the camera's frame. On a 1920x1080
-laptop camera, a vertical take keeps the full height and is 608x1080. A
-camera that already has the format's shape, such as a 16:9 camera for
-Horizontal or an upright iPhone for Vertical, records as it always did.
+locked while a take counts down, records, or saves.
 
-The preview shows the whole camera frame. For a cut format, it dims what
-the take will not keep and outlines what it will, so you can frame
-yourself before you record.
+Vertical uses the camera's native portrait format when it has one. The
+MacBook Pro camera lists a 1080x1920 format, so a vertical take from it
+records the full 1080x1920 frame, with every video effect still available.
+The app switches the camera when you choose Vertical, and again when you
+change or reconnect the camera, not when you press Record. `NativeFormat`
+in the Kit picks the format: a 9:16 shape, at least 30 frames per second,
+every effect the session preset's format supports, and the most pixels.
+Horizontal, and a camera without such a format, use the session preset
+(`.high`).
 
-How the cut is made:
+A camera without a native portrait format, such as an iPhone as a
+Continuity Camera, keeps the cut: the take is cut from the centre of the
+camera's frame. On a 1920x1080 camera, a cut vertical take keeps the full
+height and is 608x1080. A camera that already has the format's shape, such
+as a 16:9 camera for Horizontal, records as it always did.
+
+The preview shows the whole camera frame. With a native format that is the
+whole take, so nothing is dimmed. For a cut format, it dims what the take
+will not keep and outlines what it will, so you can frame yourself before
+you record.
+
+How the cut is made, for a camera without a native format:
 
 1. At the start of each take, `VideoCrop` in the Kit works out the kept
    region from the camera's current format: centred, even pixel sizes, and
@@ -258,7 +271,10 @@ How the cut is made:
    with an export and replaces the file. The take shows "Saving…" until
    this is done.
 
-The log says which path gave the take its shape:
+The log says which camera format the app chose when it switched, and, at
+the start of each take, whether the take uses a native format ("native
+1080x1920 format; no crop") or a cut. After the take, it says which path
+gave the take its shape:
 
 ```bash
 log show --last 1h --predicate 'subsystem == "com.mojility.notch-prompter"'
@@ -266,14 +282,14 @@ log show --last 1h --predicate 'subsystem == "com.mojility.notch-prompter"'
 
 Two limits to know:
 
-- Vertical has low resolution on a 1080p laptop camera: 608x1080, about a
-  third of the frame. A 4K camera or an iPhone gives a sharper vertical
-  take.
-- Center Stage frames for the whole camera image. macOS does not let an app
-  give Center Stage a region of interest (`centerStageRectOfInterest` is
-  not available on macOS), so in a vertical take Center Stage can move you
-  toward the dimmed sides. Turn Center Stage off for vertical takes if it
-  does.
+- A cut vertical take has low resolution on a 1080p camera without a
+  native portrait format: 608x1080, about a third of the frame.
+- With a native portrait format, Center Stage frames for the portrait image
+  itself. With a cut, Center Stage frames for the whole camera image. macOS
+  does not let an app give Center Stage a region of interest
+  (`centerStageRectOfInterest` is not available on macOS), so in a cut
+  vertical take Center Stage can move you toward the dimmed sides. Turn
+  Center Stage off for cut vertical takes if it does.
 
 ## Signing
 

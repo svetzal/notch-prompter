@@ -15,6 +15,17 @@ enum CaptureError: LocalizedError {
     }
 }
 
+/// The camera format a configuration settled on, for the log.
+struct CameraFormatSwitch: Sendable {
+    let videoFormat: VideoFormat
+    /// The format the session preset chose.
+    let presetSize: PixelSize
+    /// The format the camera runs in now.
+    let size: PixelSize
+    /// Whether the camera switched to a format with the take's shape.
+    let isNative: Bool
+}
+
 /// How a recording ended.
 struct RecordingOutcome: Sendable {
     let url: URL
@@ -44,31 +55,32 @@ final class CaptureSessionGateway: NSObject, @unchecked Sendable {
     /// The video connection whose encoder settings were changed for a crop,
     /// so the next uncropped take can put them back.
     private var croppedConnection: AVCaptureConnection?
+    /// The take shape the camera's format was last chosen for. A change of
+    /// camera chooses again.
+    private var appliedVideoFormat: VideoFormat?
 
     override init() {
         (recordingOutcomes, outcomeContinuation) = AsyncStream.makeStream()
         super.init()
     }
 
-    /// Uses the given devices (by `uniqueID`, `nil` for none) and keeps the session running.
-    func use(videoDeviceID: String?, audioDeviceID: String?) async throws {
-        try await onQueue {
-            self.session.beginConfiguration()
-            defer { self.session.commitConfiguration() }
-            if self.session.canSetSessionPreset(.high) {
-                self.session.sessionPreset = .high
-            }
-            self.videoInput = try self.replacing(self.videoInput, with: videoDeviceID)
-            self.audioInput = try self.replacing(self.audioInput, with: audioDeviceID)
-            if !self.session.outputs.contains(self.movieOutput), self.session.canAddOutput(self.movieOutput) {
-                self.session.addOutput(self.movieOutput)
-            }
+    /// Uses the given devices (by `uniqueID`, `nil` for none), puts the
+    /// camera in the format for `videoFormat`, and keeps the session running.
+    ///
+    /// Returns the camera format it chose, or `nil` when the camera and the
+    /// take shape are unchanged (or there is no camera), so nothing was chosen.
+    func use(videoDeviceID: String?, audioDeviceID: String?, videoFormat: VideoFormat) async throws -> CameraFormatSwitch? {
+        let formatSwitch = try await onQueue { () -> CameraFormatSwitch? in
+            let cameraChanged = try self.configureInputs(videoDeviceID: videoDeviceID, audioDeviceID: audioDeviceID)
+            guard cameraChanged || videoFormat != self.appliedVideoFormat else { return nil }
+            return try self.applyCameraFormat(for: videoFormat)
         }
         try await onQueue {
             if !self.session.isRunning {
                 self.session.startRunning()
             }
         }
+        return formatSwitch
     }
 
     /// Starts writing a QuickTime movie of the current inputs to `url`, in
@@ -79,11 +91,7 @@ final class CaptureSessionGateway: NSObject, @unchecked Sendable {
             guard let device = self.videoInput?.device, let connection = self.movieOutput.connection(with: .video) else {
                 throw CaptureError.noCamera
             }
-            let dimensions = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
-            let crop = VideoCrop(
-                source: PixelSize(width: Int(dimensions.width), height: Int(dimensions.height)),
-                format: format
-            )
+            let crop = VideoCrop(source: device.activeFormat.pixelSize, format: format)
             self.applyEncoderSettings(for: crop, on: connection)
             self.applyAudioSettings()
             self.isRecordingRequested = true
@@ -153,6 +161,57 @@ final class CaptureSessionGateway: NSObject, @unchecked Sendable {
 
     private static let audioSampleRate = 48_000.0
 
+    /// Puts the devices into the session. Returns whether the camera input
+    /// changed. Must run on `queue`.
+    private func configureInputs(videoDeviceID: String?, audioDeviceID: String?) throws -> Bool {
+        session.beginConfiguration()
+        defer { session.commitConfiguration() }
+        let previousVideoInput = videoInput
+        videoInput = try replacing(videoInput, with: videoDeviceID)
+        audioInput = try replacing(audioInput, with: audioDeviceID)
+        if !session.outputs.contains(movieOutput), session.canAddOutput(movieOutput) {
+            session.addOutput(movieOutput)
+        }
+        return videoInput !== previousVideoInput
+    }
+
+    /// Chooses the camera's format for `videoFormat`. Must run on `queue`.
+    ///
+    /// The session preset's format comes first: it is what Horizontal and
+    /// cameras without a native portrait format use, and its effects are the
+    /// ones a native format must keep. When `NativeFormat` finds a format
+    /// with the take's shape, the camera switches to it, and the session
+    /// preset becomes `.inputPriority`. Setting `.high` again later hands the
+    /// format back to the preset.
+    private func applyCameraFormat(for videoFormat: VideoFormat) throws -> CameraFormatSwitch? {
+        guard let device = videoInput?.device else {
+            appliedVideoFormat = videoFormat
+            return nil
+        }
+        if session.sessionPreset != .high, session.canSetSessionPreset(.high) {
+            session.sessionPreset = .high
+        }
+        let presetFormat = device.activeFormat
+        let formats = device.formats
+        let native = NativeFormat.index(
+            for: videoFormat,
+            in: formats.map(CameraFormat.init),
+            keeping: CameraFormat(presetFormat).supportedEffects
+        )
+        if let native {
+            try device.lockForConfiguration()
+            device.activeFormat = formats[native]
+            device.unlockForConfiguration()
+        }
+        appliedVideoFormat = videoFormat
+        return CameraFormatSwitch(
+            videoFormat: videoFormat,
+            presetSize: presetFormat.pixelSize,
+            size: device.activeFormat.pixelSize,
+            isNative: native != nil
+        )
+    }
+
     /// Swaps one input for another. Must run on `queue`, inside a configuration block.
     private func replacing(_ current: AVCaptureDeviceInput?, with deviceID: String?) throws -> AVCaptureDeviceInput? {
         if let current, current.device.uniqueID == deviceID {
@@ -183,5 +242,31 @@ extension CaptureSessionGateway: AVCaptureFileOutputRecordingDelegate {
         let finished = (error as NSError?)?.userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool
         let failure = (error == nil || finished == true) ? nil : error?.localizedDescription
         outcomeContinuation.yield(RecordingOutcome(url: outputFileURL, failure: failure))
+    }
+}
+
+extension AVCaptureDevice.Format {
+
+    var pixelSize: PixelSize {
+        let dimensions = CMVideoFormatDescriptionGetDimensions(formatDescription)
+        return PixelSize(width: Int(dimensions.width), height: Int(dimensions.height))
+    }
+}
+
+extension CameraFormat {
+
+    /// The format's size, top frame rate, and effect support, for `NativeFormat`.
+    init(_ format: AVCaptureDevice.Format) {
+        var effects: Set<VideoEffect> = []
+        if format.isPortraitEffectSupported { effects.insert(.portrait) }
+        if format.isStudioLightSupported { effects.insert(.studioLight) }
+        if format.isBackgroundReplacementSupported { effects.insert(.backgroundReplacement) }
+        if format.isCenterStageSupported { effects.insert(.centerStage) }
+        if #available(macOS 26.2, *), format.isEdgeLightSupported { effects.insert(.edgeLight) }
+        self.init(
+            size: format.pixelSize,
+            maxFrameRate: format.videoSupportedFrameRateRanges.map(\.maxFrameRate).max() ?? 0,
+            supportedEffects: effects
+        )
     }
 }
