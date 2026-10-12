@@ -1,6 +1,7 @@
+import AppKit
 import SwiftUI
 
-/// The main window: scripts on the left, the selected script on the right.
+/// The main window: scripts on the left, the script and the session on the right.
 struct RootView: View {
 
     @Bindable var model: AppModel
@@ -19,17 +20,20 @@ struct RootView: View {
             }
             .navigationTitle(model.library.selectedTitle ?? "Notch Prompter")
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            model.capture.recheckAccess()
+        }
         .alert("Something went wrong", isPresented: hasError) {
-            Button("OK") { model.library.errorMessage = nil }
+            Button("OK") { model.clearErrors() }
         } message: {
-            Text(model.library.errorMessage ?? "")
+            Text(model.errorMessage ?? "")
         }
     }
 
     private var hasError: Binding<Bool> {
         Binding(
-            get: { model.library.errorMessage != nil },
-            set: { if !$0 { model.library.errorMessage = nil } }
+            get: { model.errorMessage != nil },
+            set: { if !$0 { model.clearErrors() } }
         )
     }
 }

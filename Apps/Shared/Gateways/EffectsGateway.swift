@@ -1,0 +1,112 @@
+import AVFoundation
+import NotchPrompterKit
+
+/// Reads and observes the system video effects for one camera, and carries
+/// out the two controls Apple allows: Center Stage and reactions.
+///
+/// Portrait, Studio Light, and background replacement are read-only class
+/// properties. Do not try to set them; send people to the Video Effects
+/// panel instead. Center Stage runs in `.cooperative` mode so Control Center
+/// keeps working. Never switch it to `.app`, which would grey out the
+/// user's own control.
+@MainActor
+final class EffectsGateway {
+
+    var onChange: (@MainActor () -> Void)?
+
+    private var device: AVCaptureDevice?
+    private var deviceObservations: [NSKeyValueObservation] = []
+    private var classObserver: ClassKeyObserver?
+
+    init() {
+        if AVCaptureDevice.centerStageControlMode != .cooperative {
+            AVCaptureDevice.centerStageControlMode = .cooperative
+        }
+        classObserver = ClassKeyObserver(keyPaths: [
+            "centerStageEnabled", "centerStageControlMode", "portraitEffectEnabled",
+            "studioLightEnabled", "backgroundReplacementEnabled", "reactionEffectsEnabled"
+        ]) { [weak self] in
+            Task { @MainActor in self?.onChange?() }
+        }
+    }
+
+    /// Follows a different camera, or none.
+    func follow(deviceID: String?) {
+        guard deviceID != device?.uniqueID else { return }
+        deviceObservations = []
+        device = deviceID.flatMap(AVCaptureDevice.init(uniqueID:))
+        if let device {
+            let notify: @Sendable () -> Void = { [weak self] in
+                Task { @MainActor in self?.onChange?() }
+            }
+            deviceObservations = [
+                device.observe(\.isPortraitEffectActive) { _, _ in notify() },
+                device.observe(\.isStudioLightActive) { _, _ in notify() },
+                device.observe(\.isBackgroundReplacementActive) { _, _ in notify() },
+                device.observe(\.isCenterStageActive) { _, _ in notify() },
+                device.observe(\.canPerformReactionEffects) { _, _ in notify() },
+                device.observe(\.activeFormat) { _, _ in notify() }
+            ]
+        }
+        onChange?()
+    }
+
+    var snapshot: EffectsSnapshot {
+        guard let device else { return .noCamera }
+        let format = device.activeFormat
+        return EffectsSnapshot(
+            portrait: EffectReading(
+                isSupported: format.isPortraitEffectSupported,
+                isEnabled: AVCaptureDevice.isPortraitEffectEnabled,
+                isActive: device.isPortraitEffectActive
+            ),
+            studioLight: EffectReading(
+                isSupported: format.isStudioLightSupported,
+                isEnabled: AVCaptureDevice.isStudioLightEnabled,
+                isActive: device.isStudioLightActive
+            ),
+            backgroundReplacement: EffectReading(
+                isSupported: format.isBackgroundReplacementSupported,
+                isEnabled: AVCaptureDevice.isBackgroundReplacementEnabled,
+                isActive: device.isBackgroundReplacementActive
+            ),
+            centerStage: EffectReading(
+                isSupported: format.isCenterStageSupported,
+                isEnabled: AVCaptureDevice.isCenterStageEnabled,
+                isActive: device.isCenterStageActive
+            ),
+            centerStageControl: Self.control(AVCaptureDevice.centerStageControlMode),
+            reactionsEnabled: AVCaptureDevice.reactionEffectsEnabled,
+            canPerformReactions: device.canPerformReactionEffects,
+            availableReactions: Set(device.availableReactionTypes.map(\.rawValue))
+        )
+    }
+
+    func setCenterStage(_ enabled: Bool) {
+        guard AVCaptureDevice.centerStageControlMode == .cooperative else { return }
+        AVCaptureDevice.isCenterStageEnabled = enabled
+    }
+
+    func performReaction(_ rawValue: String) {
+        let reaction = AVCaptureReactionType(rawValue: rawValue)
+        // performEffect(for:) throws an Objective-C exception for a type not in availableReactionTypes.
+        guard let device, device.canPerformReactionEffects, device.availableReactionTypes.contains(reaction) else { return }
+        device.performEffect(for: reaction)
+    }
+
+    func showVideoEffectsPanel() {
+        AVCaptureDevice.showSystemUserInterface(.videoEffects)
+    }
+
+    static func systemImage(forReaction rawValue: String) -> String {
+        AVCaptureReactionType(rawValue: rawValue).systemImageName
+    }
+
+    private static func control(_ mode: AVCaptureDevice.CenterStageControlMode) -> EffectsSnapshot.CenterStageControl {
+        switch mode {
+        case .app: .app
+        case .cooperative: .cooperative
+        default: .user
+        }
+    }
+}
