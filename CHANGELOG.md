@@ -19,6 +19,7 @@ All notable changes to this project are recorded here. The format follows
 
 - The camera preview shows the camera's whole frame, in the camera's own
   shape, instead of filling a 16:9 box.
+- Takes record audio at 48 kHz instead of the session preset's 24 kHz.
 
 - The prompter grows out of the notch instead of hanging below it. The panel
   starts at the screen's top edge, is pure black, and has the notch's

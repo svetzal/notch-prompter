@@ -85,6 +85,7 @@ final class CaptureSessionGateway: NSObject, @unchecked Sendable {
                 format: format
             )
             self.applyEncoderSettings(for: crop, on: connection)
+            self.applyAudioSettings()
             self.isRecordingRequested = true
             self.movieOutput.startRecording(to: url, recordingDelegate: self)
             return crop
@@ -138,6 +139,19 @@ final class CaptureSessionGateway: NSObject, @unchecked Sendable {
         ], for: connection)
         croppedConnection = connection
     }
+
+    /// Records the voice at 48 kHz, the rate video tools expect. The session
+    /// preset alone writes 24 kHz AAC. Every other choice the preset makes,
+    /// such as the format and the channel count, stays as it is. Must run on
+    /// `queue`.
+    private func applyAudioSettings() {
+        guard let connection = movieOutput.connection(with: .audio) else { return }
+        var settings = movieOutput.outputSettings(for: connection)
+        settings[AVSampleRateKey] = Self.audioSampleRate
+        movieOutput.setOutputSettings(settings, for: connection)
+    }
+
+    private static let audioSampleRate = 48_000.0
 
     /// Swaps one input for another. Must run on `queue`, inside a configuration block.
     private func replacing(_ current: AVCaptureDeviceInput?, with deviceID: String?) throws -> AVCaptureDeviceInput? {
