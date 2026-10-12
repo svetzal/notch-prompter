@@ -5,3 +5,4 @@ DerivedData/
 NotchPrompter.xcodeproj/
 *.xcuserstate
 xcuserdata/
+.et_env
