@@ -264,3 +264,49 @@ struct TakeInProgressTests {
         #expect(!session.isTakeInProgress)
     }
 }
+
+@Suite("Voice clean-up after a take")
+struct VoiceCleanUpPhaseTests {
+
+    @Test("a saved take can go on to its voice clean-up; recording waits until it is done")
+    func cleanUp() {
+        var session = makeSession(countdown: 0)
+        _ = session.begin(.recording, at: at(0))
+        _ = session.stop(at: at(5))
+        #expect(session.status(at: at(5)) == .saving)
+
+        session.voiceCleanUpDidStart()
+        #expect(session.phase == .cleaningUpVoice)
+        #expect(session.status(at: at(6)) == .cleaningUpVoice)
+        #expect(session.isFinishingTake)
+        #expect(!session.canBegin)
+        #expect(session.begin(.recording, at: at(6)) == [])
+        #expect(session.stop(at: at(6)) == [])
+        // The camera and the format are free again: the movie's video is final.
+        #expect(!session.isRecording)
+        #expect(!session.isTakeInProgress)
+
+        session.recordingDidEnd(at: at(9))
+        #expect(session.phase == .ready)
+        #expect(!session.isFinishingTake)
+    }
+
+    @Test("a clean-up only follows a take that is saving")
+    func onlyAfterSaving() {
+        var session = makeSession()
+        session.voiceCleanUpDidStart()
+        #expect(session.phase == .hidden)
+        _ = session.showPrompter()
+        session.voiceCleanUpDidStart()
+        #expect(session.phase == .ready)
+    }
+
+    @Test("saving is finishing the take too, so Stop is not offered")
+    func savingIsFinishing() {
+        var session = makeSession(countdown: 0)
+        _ = session.begin(.recording, at: at(0))
+        #expect(!session.isFinishingTake)
+        _ = session.stop(at: at(1))
+        #expect(session.isFinishingTake)
+    }
+}

@@ -3,7 +3,8 @@ import Foundation
 /// What the window says about the run, at a glance.
 ///
 /// The main window's toolbar shows this in its centre: ready, the countdown,
-/// a rehearsal, the time a recording has run, or the movie file closing.
+/// a rehearsal, the time a recording has run, the movie file closing, or
+/// the take's voice clean-up.
 public enum TakeStatus: Equatable, Sendable {
     /// Nothing is running; a take or a rehearsal can start.
     case ready
@@ -15,6 +16,8 @@ public enum TakeStatus: Equatable, Sendable {
     case recording(elapsed: TimeInterval)
     /// Recording has stopped and the movie file is still closing.
     case saving
+    /// The saved take's audio is going through the voice clean-up chain.
+    case cleaningUpVoice
 }
 
 extension TakeSession {
@@ -37,6 +40,8 @@ extension TakeSession {
             .recording(elapsed: elapsed(at: now) ?? 0)
         case .finishing:
             .saving
+        case .cleaningUpVoice:
+            .cleaningUpVoice
         }
     }
 }

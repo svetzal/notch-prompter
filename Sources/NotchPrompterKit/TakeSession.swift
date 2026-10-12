@@ -14,6 +14,8 @@ import Foundation
 /// hidden ──show──▶ ready ──begin──▶ countingDown ──▶ live ──stop──▶ ready ──stop──▶ hidden
 ///                                                     │ (recording)
 ///                                                     └──stop──▶ finishing ──file closed──▶ ready
+///                                                                    │
+///                                                                    └──voice clean-up──▶ cleaningUpVoice ──done──▶ ready
 /// ```
 public struct TakeSession: Equatable, Sendable {
 
@@ -31,6 +33,9 @@ public struct TakeSession: Equatable, Sendable {
         case live(Mode, startedAt: Date)
         /// Recording has been told to stop; the movie file is still closing.
         case finishing
+        /// The movie is saved, and its audio is going through the voice
+        /// clean-up chain. The next take waits until it is done.
+        case cleaningUpVoice
     }
 
     public enum Command: Equatable, Sendable {
@@ -74,6 +79,12 @@ public struct TakeSession: Equatable, Sendable {
         case .countingDown(.recording, _), .live(.recording, _), .finishing: true
         default: false
         }
+    }
+
+    /// Whether a recorded take is saving or being cleaned up: Stop has
+    /// nothing left to stop, and the next take waits.
+    public var isFinishingTake: Bool {
+        phase == .finishing || phase == .cleaningUpVoice
     }
 
     /// Whether a take can start now.
@@ -139,7 +150,7 @@ public struct TakeSession: Equatable, Sendable {
     /// Esc: stop whatever is running, or hide the prompter if nothing is.
     public mutating func stop(at now: Date) -> [Command] {
         switch phase {
-        case .hidden, .finishing:
+        case .hidden, .finishing, .cleaningUpVoice:
             return []
         case .ready:
             phase = .hidden
@@ -158,11 +169,20 @@ public struct TakeSession: Equatable, Sendable {
         }
     }
 
-    /// The movie file has closed, whether because we stopped it or because
-    /// recording failed on its own (a full disk, a camera unplugged).
+    /// The saved take's audio is going through the voice clean-up chain.
+    /// Only a take that is saving moves on to its clean-up.
+    public mutating func voiceCleanUpDidStart() {
+        if phase == .finishing {
+            phase = .cleaningUpVoice
+        }
+    }
+
+    /// The take is over: its movie file has closed (because we stopped it,
+    /// or because recording failed on its own, such as a full disk or an
+    /// unplugged camera) and any voice clean-up is done.
     public mutating func recordingDidEnd(at now: Date) {
         switch phase {
-        case .finishing, .live(.recording, _):
+        case .finishing, .cleaningUpVoice, .live(.recording, _):
             scroll.pause(at: now)
             phase = .ready
         default:

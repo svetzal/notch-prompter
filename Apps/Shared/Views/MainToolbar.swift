@@ -90,7 +90,8 @@ private struct RehearseButton: View {
     }
 }
 
-/// Ready, the countdown, a rehearsal, or the recording's elapsed time.
+/// Ready, the countdown, a rehearsal, the recording's elapsed time, saving,
+/// or the voice clean-up.
 private struct TakeStatusView: View {
 
     let prompter: PrompterController
@@ -127,6 +128,8 @@ private struct TakeStatusView: View {
             .accessibilityLabel("Recording\(isVertical ? " vertical" : ""), \(ElapsedTime.format(elapsed))")
         case .saving:
             Text("Saving…").foregroundStyle(.secondary)
+        case .cleaningUpVoice:
+            Text("Cleaning up voice…").foregroundStyle(.secondary)
         }
     }
 }
@@ -184,7 +187,7 @@ private struct PrompterSettingsButton: View {
     }
 }
 
-/// Record, or Stop while a countdown, a run, or saving is under way.
+/// Record, or Stop while a countdown, a run, saving, or a voice clean-up is under way.
 private struct RecordButton: View {
 
     let model: AppModel
@@ -198,7 +201,7 @@ private struct RecordButton: View {
                 } label: {
                     Label("Stop", systemImage: "stop.fill")
                 }
-                .disabled(session.phase == .finishing)
+                .disabled(session.isFinishingTake)
                 .help("Stop (\(PrompterKeyCommand.stop.keyLabel) or \(Shortcuts.stop.label))")
             } else {
                 Button {
