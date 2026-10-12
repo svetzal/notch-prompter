@@ -25,6 +25,8 @@ final class AppModel {
             prompter.setDocument(library.document)
             prompter.scriptTitle = library.selectedTitle
         }
+        prompter.recorder = capture
+        capture.onRecordingEnded = { [weak prompter] in prompter?.recordingDidEnd() }
         Task { await capture.start() }
     }
 

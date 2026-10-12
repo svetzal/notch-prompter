@@ -25,6 +25,9 @@ struct NotchPrompterApp: App {
                 }
                 .keyboardShortcut("p", modifiers: [.command, .shift])
                 .disabled(!(model.prompter.session.phase == .hidden || model.prompter.session.phase == .ready))
+                Button("Record Take") { model.prompter.record() }
+                    .keyboardShortcut("r", modifiers: .command)
+                    .disabled(!model.prompter.session.canBegin || !model.capture.access.canUseCamera)
                 Button("Rehearse") { model.prompter.rehearse() }
                     .keyboardShortcut("r", modifiers: [.command, .shift])
                     .disabled(!model.prompter.session.canBegin)

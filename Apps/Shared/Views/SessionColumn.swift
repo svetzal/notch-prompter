@@ -7,6 +7,7 @@ struct SessionColumn: View {
 
     var body: some View {
         Form {
+            TakeControls(prompter: model.prompter, capture: model.capture)
             CameraSection(capture: model.capture)
             EffectsSection(capture: model.capture)
             PrompterControls(prompter: model.prompter)

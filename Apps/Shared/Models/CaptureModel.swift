@@ -14,7 +14,12 @@ final class CaptureModel {
     private(set) var activeCameraID: String?
     private(set) var activeMicrophoneID: String?
     private(set) var effects = EffectsPresentation(.noCamera)
+    /// The last take that finished writing.
+    private(set) var lastRecording: URL?
     var errorMessage: String?
+
+    /// Called when a take's movie file closes, whether it worked or not.
+    @ObservationIgnored var onRecordingEnded: (@MainActor () -> Void)?
 
     /// The camera chosen in the window, remembered while it is disconnected.
     var preferredCameraID: String? {
@@ -46,6 +51,10 @@ final class CaptureModel {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var configuration: Task<Void, Never>?
     @ObservationIgnored private var hasStarted = false
+    /// Whether the current take still wants a recording. Guards against a
+    /// stop that arrives while the start is still on its way to the session.
+    @ObservationIgnored private var wantsRecording = false
+    @ObservationIgnored private var outcomeListener: Task<Void, Never>?
 
     private enum Keys {
         static let camera = "capture.cameraID"
@@ -58,6 +67,11 @@ final class CaptureModel {
         preferredMicrophoneID = defaults.string(forKey: Keys.microphone)
         discovery.onChange = { [weak self] in self?.refreshDevices() }
         effectsGateway.onChange = { [weak self] in self?.refreshEffects() }
+        outcomeListener = Task { [weak self, outcomes = gateway.recordingOutcomes] in
+            for await outcome in outcomes {
+                self?.recordingFinished(outcome)
+            }
+        }
     }
 
     // MARK: - Starting
@@ -164,5 +178,60 @@ final class CaptureModel {
 
     func showVideoEffectsPanel() {
         effectsGateway.showVideoEffectsPanel()
+    }
+
+    // MARK: - Recording
+
+    private func recordingFinished(_ outcome: RecordingOutcome) {
+        if let failure = outcome.failure {
+            errorMessage = "The take did not finish recording: \(failure)"
+        } else {
+            lastRecording = outcome.url
+            NSWorkspace.shared.activateFileViewerSelecting([outcome.url])
+        }
+        endRecording()
+    }
+
+    private func endRecording() {
+        wantsRecording = false
+        isConfigurationLocked = false
+        onRecordingEnded?()
+    }
+}
+
+extension CaptureModel: TakeRecorder {
+
+    func startRecording(scriptTitle: String?) {
+        wantsRecording = true
+        isConfigurationLocked = true
+        let pendingConfiguration = configuration
+        let gateway = gateway
+        Task { [weak self] in
+            await pendingConfiguration?.value
+            guard let self, wantsRecording else {
+                self?.endRecording()
+                return
+            }
+            do {
+                let existing = try RecordingFolder.prepare()
+                let name = RecordingNaming.uniqueFileName(
+                    RecordingNaming.fileName(scriptTitle: scriptTitle, date: .now),
+                    existing: existing
+                )
+                try await gateway.startRecording(to: RecordingFolder.url.appending(path: name))
+                if !wantsRecording {
+                    await gateway.stopRecording()
+                }
+            } catch {
+                errorMessage = "Could not start recording: \(error.localizedDescription)"
+                endRecording()
+            }
+        }
+    }
+
+    func stopRecording() {
+        wantsRecording = false
+        let gateway = gateway
+        Task { await gateway.stopRecording() }
     }
 }

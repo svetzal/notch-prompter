@@ -3,13 +3,22 @@ import AVFoundation
 enum CaptureError: LocalizedError {
     case deviceUnavailable
     case cannotAddInput(String)
+    case noCamera
 
     var errorDescription: String? {
         switch self {
         case .deviceUnavailable: "The selected device is no longer connected."
         case .cannotAddInput(let name): "\(name) cannot be used right now. Another app may be using it."
+        case .noCamera: "There is no camera to record from."
         }
     }
+}
+
+/// How a recording ended.
+struct RecordingOutcome: Sendable {
+    let url: URL
+    /// `nil` when the movie file is complete and playable.
+    let failure: String?
 }
 
 /// Owns the `AVCaptureSession`.
@@ -22,9 +31,20 @@ enum CaptureError: LocalizedError {
 final class CaptureSessionGateway: NSObject, @unchecked Sendable {
 
     let session = AVCaptureSession()
+    /// One element per finished recording, successful or not.
+    let recordingOutcomes: AsyncStream<RecordingOutcome>
+
     private let queue = DispatchQueue(label: "com.mojility.notch-prompter.capture")
+    private let outcomeContinuation: AsyncStream<RecordingOutcome>.Continuation
+    private let movieOutput = AVCaptureMovieFileOutput()
     private var videoInput: AVCaptureDeviceInput?
     private var audioInput: AVCaptureDeviceInput?
+    private var isRecordingRequested = false
+
+    override init() {
+        (recordingOutcomes, outcomeContinuation) = AsyncStream.makeStream()
+        super.init()
+    }
 
     /// Uses the given devices (by `uniqueID`, `nil` for none) and keeps the session running.
     func use(videoDeviceID: String?, audioDeviceID: String?) async throws {
@@ -36,11 +56,35 @@ final class CaptureSessionGateway: NSObject, @unchecked Sendable {
             }
             self.videoInput = try self.replacing(self.videoInput, with: videoDeviceID)
             self.audioInput = try self.replacing(self.audioInput, with: audioDeviceID)
+            if !self.session.outputs.contains(self.movieOutput), self.session.canAddOutput(self.movieOutput) {
+                self.session.addOutput(self.movieOutput)
+            }
         }
         try await onQueue {
             if !self.session.isRunning {
                 self.session.startRunning()
             }
+        }
+    }
+
+    /// Starts writing a QuickTime movie of the current inputs to `url`.
+    /// The result arrives on ``recordingOutcomes``.
+    func startRecording(to url: URL) async throws {
+        try await onQueue {
+            guard self.videoInput != nil, self.movieOutput.connection(with: .video) != nil else {
+                throw CaptureError.noCamera
+            }
+            self.isRecordingRequested = true
+            self.movieOutput.startRecording(to: url, recordingDelegate: self)
+        }
+    }
+
+    /// Stops the recording, if one was started. Safe to call more than once.
+    func stopRecording() async {
+        try? await onQueue {
+            guard self.isRecordingRequested else { return }
+            self.isRecordingRequested = false
+            self.movieOutput.stopRecording()
         }
     }
 
@@ -73,5 +117,21 @@ final class CaptureSessionGateway: NSObject, @unchecked Sendable {
         guard session.canAddInput(input) else { throw CaptureError.cannotAddInput(device.localizedName) }
         session.addInput(input)
         return input
+    }
+}
+
+extension CaptureSessionGateway: AVCaptureFileOutputRecordingDelegate {
+
+    func fileOutput(
+        _ output: AVCaptureFileOutput,
+        didFinishRecordingTo outputFileURL: URL,
+        from connections: [AVCaptureConnection],
+        error: (any Error)?
+    ) {
+        // AVFoundation reports some complete recordings (a size or duration
+        // limit reached) with an error that says the file finished anyway.
+        let finished = (error as NSError?)?.userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool
+        let failure = (error == nil || finished == true) ? nil : error?.localizedDescription
+        outcomeContinuation.yield(RecordingOutcome(url: outputFileURL, failure: failure))
     }
 }
