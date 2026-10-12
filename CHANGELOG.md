@@ -10,15 +10,21 @@ All notable changes to this project are recorded here. The format follows
 - Voice clean-up. Edit Chain… in the new Voice section opens a window that
   lists the Audio Unit effects installed on the Mac. Add them to a chain,
   put them in order, bypass or remove them, and set each one up in its own
-  window, with a parameter list when its own view cannot be shown. The app
-  remembers the chain and each plug-in's settings. With Clean up each take
+  window. The app remembers the chain and each plug-in's settings. With Clean up each take
   on, each take's audio goes through the chain after it is saved: the take
   as recorded is kept as `<name>-original.mov`, and the processed take
   keeps the take's name, with its video copied as it is and its sync exact.
   The toolbar shows "Cleaning up voice…" until it is done. Clean Up Again
   runs the last take through the chain again, always from the original, and
-  Reveal Both shows both files. Plug-ins run out of process only. If a
-  clean-up fails, the recorded take goes back under its name.
+  Reveal Both shows both files. If a clean-up fails, the recorded take
+  goes back under its name.
+- Plug-ins load inside the app, so each one shows its own interface, like
+  in other hosts; a plug-in without one shows the standard parameter view.
+  The window opens at the plug-in's size and follows it when the plug-in
+  resizes itself. Out of process, the installed plug-ins showed neither
+  their interfaces nor their parameters. The app now has the
+  `com.apple.security.cs.disable-library-validation` entitlement, and a
+  plug-in crash ends the app; Stacey chose this on 2026-10-12.
 - A clean-up that was cut off (the app quit or crashed, or the power went)
   is finished at the next launch: an `-original` without its take goes
   back under the take's name, and leftover working files are removed. The

@@ -4,27 +4,27 @@ import NotchPrompterKit
 
 enum AudioUnitLoadError: LocalizedError {
     case notInstalled(String)
-    case loadedInProcess(String)
     case unreadableSettings(String)
 
     var errorDescription: String? {
         switch self {
         case .notInstalled(let name):
             "\(name) is not installed."
-        case .loadedInProcess(let name):
-            "\(name) cannot run in a separate process, and the app only loads plug-ins that way."
         case .unreadableSettings(let name):
             "The saved settings for \(name) cannot be read."
         }
     }
 }
 
-/// The installed Audio Units, loaded out of process.
+/// The installed Audio Units, loaded into the app's own process.
 ///
-/// Every plug-in runs in a separate system process, never in the app. A
-/// plug-in that crashes then cannot take the app or a take down with it,
-/// and the app's hardened runtime does not need to load third-party code.
-/// A plug-in that will only load in process is refused.
+/// Out of process, the installed plug-ins showed the app neither their
+/// windows nor their parameters, so on 2026-10-12 Stacey chose to load them
+/// in process, like other hosts. That needs the
+/// `com.apple.security.cs.disable-library-validation` entitlement, because
+/// the hardened runtime otherwise refuses code signed by other developers.
+/// A plug-in that crashes now ends the app; the launch sweep in
+/// ``TakeVoiceCleanUp/recoverInterrupted(in:)`` puts an interrupted take back.
 enum AudioUnits {
 
     /// Every installed Audio Unit. The Kit decides which ones the chain offers.
@@ -43,8 +43,8 @@ enum AudioUnits {
             }
     }
 
-    /// Loads `component` in a separate process and gives it `state`, the
-    /// settings saved from it before, if any.
+    /// Loads `component` in process and gives it `state`, the settings saved
+    /// from it before, if any.
     static func load(_ component: AudioUnitComponent, state: Data? = nil) async throws -> sending AVAudioUnit {
         let description = AudioComponentDescription(
             componentType: component.type,
@@ -56,11 +56,7 @@ enum AudioUnits {
         guard !AVAudioUnitComponentManager.shared().components(matching: description).isEmpty else {
             throw AudioUnitLoadError.notInstalled(component.name)
         }
-        let unit = try await AVAudioUnit.instantiate(with: description, options: .loadOutOfProcess)
-        // Out of process is a request that the system may quietly ignore.
-        guard !unit.auAudioUnit.isLoadedInProcess else {
-            throw AudioUnitLoadError.loadedInProcess(component.name)
-        }
+        let unit = try await AVAudioUnit.instantiate(with: description, options: .loadInProcess)
         if let state {
             guard let settings = settings(from: state) else {
                 throw AudioUnitLoadError.unreadableSettings(component.name)
@@ -70,7 +66,25 @@ enum AudioUnits {
         return unit
     }
 
-    /// The plug-in's own view, or `nil` when it has none or it cannot be shown.
+    /// The plug-in's settings interface: its own view, or the generic
+    /// CoreAudioKit view of its parameters when it has none.
+    ///
+    /// The plug-in's render resources are allocated first. Some plug-ins,
+    /// such as iZotope RX, crash when their view goes into a window before
+    /// that. Release them with `deallocateRenderResources()` when the window
+    /// closes.
+    @MainActor
+    static func settingsController(for unit: AVAudioUnit) async throws -> NSViewController {
+        try unit.auAudioUnit.allocateRenderResources()
+        if let controller = await viewController(for: unit) {
+            return controller
+        }
+        let generic = NSViewController()
+        generic.view = AUGenericView(audioUnit: unit.audioUnit)
+        return generic
+    }
+
+    /// The plug-in's own view, or `nil` when it has none.
     @MainActor
     static func viewController(for unit: AVAudioUnit) async -> NSViewController? {
         let audioUnit = unit.auAudioUnit

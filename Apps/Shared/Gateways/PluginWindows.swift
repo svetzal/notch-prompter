@@ -1,89 +1,100 @@
 import AppKit
-import SwiftUI
+import NotchPrompterKit
 
-/// One window for each open plug-in editor, keyed by the chain entry.
+/// One window for each open plug-in, keyed by the chain entry, showing the
+/// plug-in's own interface.
 ///
-/// A thin adapter over `NSWindow`. Closing a window reports back, so the
-/// plug-in's settings can be saved and the plug-in released.
+/// A thin adapter over `NSWindow`. The window opens at the size the Kit's
+/// ``PluginWindowSize`` picks. A plug-in whose view stretches can be resized
+/// by the presenter. A plug-in that resizes itself, for example from a
+/// handle in its own interface, resizes the window with it. Closing a window
+/// reports back, so the plug-in's settings can be saved and the plug-in
+/// released.
 @MainActor
 final class PluginWindows {
 
-    private var windows: [UUID: NSWindow] = [:]
-    private var delegates: [UUID: CloseObserver] = [:]
-
-    /// The smallest content size that gives a plug-in's own view room, and
-    /// the size used when a plug-in does not say what it needs.
-    private static let minimumSize = CGSize(width: 420, height: 260)
-    private static let defaultSize = CGSize(width: 480, height: 420)
-    /// Room for the switch between the plug-in's view and its parameters.
-    private static let headerHeight: CGFloat = 44
+    private var windows: [UUID: PluginWindow] = [:]
 
     /// Brings the entry's window to the front. False when it has none.
     func bringToFront(_ id: UUID) -> Bool {
         guard let window = windows[id] else { return false }
-        window.makeKeyAndOrderFront(nil)
+        window.window.makeKeyAndOrderFront(nil)
         return true
     }
 
-    func show(_ editor: PluginEditor, onClose: @escaping @MainActor () -> Void) {
-        let window = NSWindow(
-            contentRect: CGRect(origin: .zero, size: Self.contentSize(for: editor)),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "\(editor.component.name) Settings"
-        window.isReleasedWhenClosed = false
-        let hosting = NSHostingController(rootView: PluginEditorView(editor: editor))
-        // The window keeps the size chosen here; the plug-in's view does not resize it.
-        hosting.sizingOptions = [.minSize]
-        window.contentViewController = hosting
-        window.setContentSize(Self.contentSize(for: editor))
-        let id = editor.id
-        let observer = CloseObserver { [weak self] in
+    func show(_ controller: NSViewController, id: UUID, title: String, onClose: @escaping @MainActor () -> Void) {
+        let window = PluginWindow(controller: controller, title: title) { [weak self] in
             self?.windows[id] = nil
-            self?.delegates[id] = nil
             onClose()
         }
-        window.delegate = observer
         windows[id] = window
-        delegates[id] = observer
-        window.center()
-        window.makeKeyAndOrderFront(nil)
+        window.window.center()
+        window.window.makeKeyAndOrderFront(nil)
     }
 
     func close(_ id: UUID) {
-        windows[id]?.close()
-    }
-
-    func closeAll() {
-        for window in windows.values {
-            window.close()
-        }
-    }
-
-    private static func contentSize(for editor: PluginEditor) -> CGSize {
-        guard let preferred = editor.viewController?.preferredContentSize,
-              preferred.width >= 50, preferred.height >= 50 else {
-            return defaultSize
-        }
-        return CGSize(
-            width: max(preferred.width, minimumSize.width),
-            height: max(preferred.height + headerHeight, minimumSize.height)
-        )
+        windows[id]?.window.close()
     }
 }
 
-/// Reports a window's close.
-private final class CloseObserver: NSObject, NSWindowDelegate {
+/// A plug-in's window, and the observers that keep it the plug-in's size.
+@MainActor
+private final class PluginWindow: NSObject, NSWindowDelegate {
 
+    let window: NSWindow
+    private let controller: NSViewController
+    /// The view whose size is the plug-in's own: the single view that a
+    /// classic Cocoa interface puts inside its view controller, or the
+    /// controller's view.
+    private let pluginView: NSView
     private let onClose: @MainActor () -> Void
+    private var observers: [NSObjectProtocol] = []
+    private var preferredSizeObservation: NSKeyValueObservation?
 
-    init(onClose: @escaping @MainActor () -> Void) {
+    init(controller: NSViewController, title: String, onClose: @escaping @MainActor () -> Void) {
+        self.controller = controller
         self.onClose = onClose
+        let view = controller.view
+        pluginView = view.subviews.count == 1 ? view.subviews[0] : view
+        let stretches = pluginView.autoresizingMask.contains(.width) || pluginView.autoresizingMask.contains(.height)
+        window = NSWindow(
+            contentRect: .zero,
+            styleMask: stretches ? [.titled, .closable, .miniaturizable, .resizable] : [.titled, .closable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        super.init()
+        window.title = title
+        window.isReleasedWhenClosed = false
+        window.contentViewController = controller
+        window.setContentSize(PluginWindowSize.initial(preferred: controller.preferredContentSize, view: pluginView.frame.size))
+        window.delegate = self
+        followPluginSize()
+    }
+
+    /// Resizes the window when the plug-in changes its own size or its
+    /// preferred size.
+    private func followPluginSize() {
+        pluginView.postsFrameChangedNotifications = true
+        observers.append(NotificationCenter.default.addObserver(
+            forName: NSView.frameDidChangeNotification, object: pluginView, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.fit(self?.pluginView.frame.size) }
+        })
+        preferredSizeObservation = controller.observe(\.preferredContentSize) { [weak self] _, _ in
+            Task { @MainActor in self?.fit(self?.controller.preferredContentSize) }
+        }
+    }
+
+    private func fit(_ size: CGSize?) {
+        guard let size, let followed = PluginWindowSize.followed(size), window.contentLayoutRect.size != followed else { return }
+        window.setContentSize(followed)
     }
 
     func windowWillClose(_ notification: Notification) {
-        MainActor.assumeIsolated { onClose() }
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers = []
+        preferredSizeObservation = nil
+        onClose()
     }
 }

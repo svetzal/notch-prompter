@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import NotchPrompterKit
 import Observation
 import os
@@ -11,8 +12,8 @@ import os
 /// `<name>-original.mov`. ``TakeVoiceCleanUp`` does the file work, from
 /// the Kit's ``VoiceCleanUpFiles``, so a take is never lost.
 ///
-/// Every plug-in loads out of process. One that cannot is listed in
-/// ``loadFailures`` and shown as not loadable.
+/// Every plug-in loads in process (see ``AudioUnits``). One that cannot is
+/// listed in ``loadFailures`` and shown as not loadable.
 @MainActor
 @Observable
 final class VoiceModel {
@@ -24,13 +25,14 @@ final class VoiceModel {
     private(set) var takeBeingCleaned: URL?
     /// The effects the chain can use, for the chain window.
     private(set) var installedEffects: [AudioUnitComponent] = []
-    /// Plug-ins that could not be loaded out of process, with the reason.
+    /// Plug-ins that could not be loaded, with the reason.
     private(set) var loadFailures: [AudioUnitComponent: String] = [:]
     var errorMessage: String?
 
     @ObservationIgnored private let store: VoiceChainStore
     @ObservationIgnored private let windows = PluginWindows()
-    @ObservationIgnored private var editors: [UUID: PluginEditor] = [:]
+    /// The plug-ins open in settings windows, by chain entry.
+    @ObservationIgnored private var editors: [UUID: AVAudioUnit] = [:]
     @ObservationIgnored private var opening: Set<UUID> = []
     @ObservationIgnored private var checkedComponents: Set<AudioUnitComponent> = []
 
@@ -93,8 +95,7 @@ final class VoiceModel {
         chain.setBypassed(isBypassed, for: id)
     }
 
-    /// Loads each plug-in in the chain once, out of process, to find any
-    /// that cannot run that way.
+    /// Loads each plug-in in the chain once, to find any that cannot load.
     func checkLoads() {
         for component in Set(chain.entries.map(\.component)).subtracting(checkedComponents) {
             checkedComponents.insert(component)
@@ -106,7 +107,7 @@ final class VoiceModel {
                     loadFailures[component] = error.localizedDescription
                     Logger.recording.error("""
                         Plug-in \(component.name, privacy: .public) [\(component.codes, privacy: .public)] \
-                        is not loadable out of process: \(error.localizedDescription, privacy: .public)
+                        is not loadable: \(error.localizedDescription, privacy: .public)
                         """)
                 }
             }
@@ -115,7 +116,8 @@ final class VoiceModel {
 
     // MARK: - Plug-in settings windows
 
-    /// Opens the entry's plug-in in its own window, with its saved settings.
+    /// Opens the entry's plug-in, with its saved settings, in a window that
+    /// shows its own interface.
     func openSettings(for id: UUID) async {
         guard !windows.bringToFront(id), !opening.contains(id),
               let entry = chain.entries.first(where: { $0.id == id }) else { return }
@@ -123,10 +125,11 @@ final class VoiceModel {
         defer { opening.remove(id) }
         do {
             let unit = try await AudioUnits.load(entry.component, state: entry.state)
-            let editor = PluginEditor(id: id, component: entry.component, unit: unit)
-            await editor.load()
-            editors[id] = editor
-            windows.show(editor) { [weak self] in self?.editorDidClose(id) }
+            let controller = try await AudioUnits.settingsController(for: unit)
+            editors[id] = unit
+            windows.show(controller, id: id, title: "\(entry.component.name) Settings") { [weak self] in
+                self?.editorDidClose(id)
+            }
         } catch {
             loadFailures[entry.component] = error.localizedDescription
             errorMessage = "\(entry.component.name) could not be opened: \(error.localizedDescription)"
@@ -135,15 +138,15 @@ final class VoiceModel {
 
     /// Saves the settings of every open plug-in window into the chain.
     func saveOpenSettings() {
-        for (id, editor) in editors {
-            chain.setState(editor.state, for: id)
+        for (id, unit) in editors {
+            chain.setState(AudioUnits.state(of: unit), for: id)
         }
     }
 
     private func editorDidClose(_ id: UUID) {
-        guard let editor = editors.removeValue(forKey: id) else { return }
-        chain.setState(editor.state, for: id)
-        editor.close()
+        guard let unit = editors.removeValue(forKey: id) else { return }
+        chain.setState(AudioUnits.state(of: unit), for: id)
+        unit.auAudioUnit.deallocateRenderResources()
     }
 
     // MARK: - Cleaning up takes

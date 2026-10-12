@@ -353,10 +353,9 @@ recording out of sync.
 The app keeps the chain, with each plug-in's settings, in
 `~/Library/Application Support/Notch Prompter/voice-chain.json`.
 
-A plug-in's window shows the plug-in's own view when it can, with a
-Parameters switch at the top for a plain list of its parameters. When the
-app cannot show the plug-in's view, the window shows the list. A plug-in in
-another process can take a few seconds to publish its parameters.
+A plug-in's window shows the plug-in's own interface, at the plug-in's own
+size. A plug-in without an interface of its own shows the standard list of
+its parameters. If the plug-in can be resized, you can resize its window.
 
 ### After each take
 
@@ -393,18 +392,30 @@ Each clean-up writes lines to the `recording` log category: the chain at
 the start, each plug-in's latency, and at the end the time it took, the
 frames in and out, and the latency removed.
 
-### Plug-ins run out of process
+### Plug-ins run inside the app
 
-Every plug-in runs in a separate system process, never inside the app. A
-plug-in that crashes cannot stop the app or lose a take, and the app's
-hardened runtime does not need to load other developers' code. A plug-in
-that the system will not run out of process shows "Not loadable" in the
-chain, and a take does not go through it.
+The app loads each plug-in into its own process, as other audio hosts do,
+so that each plug-in can show its own interface. Loaded in a separate
+process, the installed plug-ins showed the app neither their interfaces nor
+their parameters. This has a security cost. The app has camera and
+microphone access, and to load plug-ins made by other developers it turns
+off the hardened runtime's library validation
+(`com.apple.security.cs.disable-library-validation`), so it no longer checks
+who signed the code it loads. A plug-in can also crash the app. Stacey
+chose this trade-off on 2026-10-12. Install only plug-ins you trust.
+
+If the app stops during a clean-up, the take is safe. At the next launch,
+the app finds an `-original` without its take and puts it back under the
+take's name, and it removes the clean-up's unfinished working file. The
+`recording` log says what it did. A plug-in that does not load shows "Not
+loadable" in the chain, and a take does not go through it.
 
 ## Signing
 
 The app is not sandboxed. It uses the hardened runtime with the camera and
-audio-input entitlements, so a notarized build can use both.
+audio-input entitlements, so a notarized build can use both. It also has
+`com.apple.security.cs.disable-library-validation`, so that it can load
+Audio Unit plug-ins made by other developers (see Voice clean-up).
 
 ## License
 

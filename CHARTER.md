@@ -80,8 +80,17 @@ From AVFAudio and AudioToolbox:
 
 - `AVAudioUnitComponentManager` lists the installed Audio Unit effects, and
   `AVAudioUnit.instantiate(with:options:)` loads one.
-  `kAudioComponentInstantiation_LoadOutOfProcess` loads it in a separate
-  process, so a plug-in crash does not stop the app.
+  `kAudioComponentInstantiation_LoadInProcess` (macOS only) loads it into
+  the app. The app loads plug-ins this way, because out of process the
+  installed plug-ins gave the app neither their own windows nor their
+  parameters.
+  Third-party plug-in code in the app needs the
+  `com.apple.security.cs.disable-library-validation` entitlement under the
+  hardened runtime, and a plug-in crash ends the app. Stacey chose this on
+  2026-10-12.
+- `AUAudioUnit.requestViewController` gives a plug-in's own interface; for
+  an in-process Audio Unit version 2 plug-in it hosts the plug-in's Cocoa
+  view. CoreAudioKit's `AUGenericView` shows any plug-in's parameters.
 - `AVAudioEngine` manual rendering mode runs audio through a chain of
   plug-ins faster than real time. This is why the chain runs after the take:
   plug-ins with look-ahead latency would put a live recording out of sync.

@@ -105,11 +105,30 @@ effects. `TakeVoiceCleanUp` does the file work, `VoiceProcessor` and
 `VoiceRenderJob` the render. The Kit decides names (`VoiceCleanUpFiles`) and
 sync (`LatencyCompensation`, `SampleContinuity`).
 
-- Load plug-ins out of process only. `AudioUnits.load` asks for
-  `.loadOutOfProcess` and refuses a unit whose `isLoadedInProcess` is true,
-  because the system can ignore the request. Do not load in process, and do
-  not add `com.apple.security.cs.disable-library-validation`; entitlement
-  changes are Stacey's decision.
+- Load plug-ins in process (`.loadInProcess`), for editing and for
+  processing. Out of process, the installed plug-ins (iZotope RX among
+  them) gave the app no windows and no parameters. On 2026-10-12 Stacey
+  chose in-process loading, with the trade-offs: the app holds camera and
+  microphone access and no longer checks the signatures of the code it
+  loads, and a plug-in crash ends the app. For that,
+  `Apps/macOS/NotchPrompter.entitlements` has
+  `com.apple.security.cs.disable-library-validation`. Keep the hardened
+  runtime and the camera and audio-input entitlements. Do not add other
+  entitlements; entitlement changes are Stacey's decision.
+- A plug-in's window shows its own interface, from
+  `AUAudioUnit.requestViewController`, or CoreAudioKit's `AUGenericView`
+  when it has none. Allocate the plug-in's render resources before its view
+  goes into a window (`AudioUnits.settingsController`): iZotope RX views
+  crash otherwise. Release them when the window closes. Save `fullState`
+  when the window closes and before each clean-up. The Kit's
+  `PluginWindowSize` decides the window's size.
+- A crash part way through a clean-up leaves an `-original` without its
+  take. At launch, `VoiceModel.recoverInterruptedCleanUps` carries out the
+  Kit's `VoiceCleanUpFiles.interruptedCleanUps`: it puts such an
+  `-original` back under the take's name, removes leftover working files,
+  and logs what it did. Keep it. `RecordingNaming` never gives a take a
+  name that ends in `-original`, so the sweep cannot mistake a take for an
+  original.
 - Never lose the recorded take. The first clean-up renames the take to
   `<name>-original.mov` before it writes anything. The result goes to a
   hidden working file and replaces the take's name only when it is complete.
@@ -131,7 +150,8 @@ sync (`LatencyCompensation`, `SampleContinuity`).
 - No live processing while recording, and no audio effects made by the app.
   The charter rules them out.
 - After changing the render path, check sync with a scratch harness that
-  compiles the gateway files against the Kit: a test movie with clicks at
+  compiles the gateway files against the Kit, signed ad hoc with the
+  hardened runtime and the app's entitlements: a test movie with clicks at
   known times must keep each click within one millisecond, keep its
   duration, and keep its video packets.
 
