@@ -148,6 +148,18 @@ final class VoiceModel {
 
     // MARK: - Cleaning up takes
 
+    /// Finishes what a clean-up cut off by a crash or a power cut left in
+    /// the takes folder. Runs once at launch, before any clean-up starts.
+    func recoverInterruptedCleanUps(in folder: URL) {
+        let steps = TakeVoiceCleanUp.recoverInterrupted(in: folder)
+        for step in steps {
+            Logger.recording.notice("Voice clean-up recovery: \(step, privacy: .public)")
+        }
+        if steps.isEmpty {
+            Logger.recording.info("Voice clean-up recovery: nothing to recover in \(folder.path, privacy: .public)")
+        }
+    }
+
     /// Runs `take` through the chain's active plug-ins, reading its
     /// `-original` if it has one. Afterwards the take's name holds the
     /// processed take or, if the clean-up failed, the recorded take.

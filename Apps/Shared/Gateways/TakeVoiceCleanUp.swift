@@ -53,4 +53,29 @@ enum TakeVoiceCleanUp {
             throw error
         }
     }
+
+    /// Carries out the Kit's sweep of `folder` after an interrupted clean-up,
+    /// and says what it did, or could not do, one line per step.
+    static func recoverInterrupted(in folder: URL) -> [String] {
+        let fileManager = FileManager.default
+        guard let names = try? fileManager.contentsOfDirectory(atPath: folder.path) else { return [] }
+        return VoiceCleanUpFiles.interruptedCleanUps(in: Set(names)).map { step in
+            switch step {
+            case .restoreOriginal(let original, let take):
+                do {
+                    try fileManager.moveItem(at: folder.appending(path: original), to: folder.appending(path: take))
+                    return "restored \(original) as \(take); its clean-up was interrupted"
+                } catch {
+                    return "could not restore \(original) as \(take): \(error.localizedDescription)"
+                }
+            case .removeWorkingFile(let working):
+                do {
+                    try fileManager.removeItem(at: folder.appending(path: working))
+                    return "removed \(working), left by an interrupted clean-up"
+                } catch {
+                    return "could not remove \(working): \(error.localizedDescription)"
+                }
+            }
+        }
+    }
 }

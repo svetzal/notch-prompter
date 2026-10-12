@@ -111,3 +111,49 @@ struct SampleContinuityTests {
         #expect(SampleContinuity.frame(atSeconds: 0.5, firstSampleSeconds: 0.5, sampleRate: 48_000) == 0)
     }
 }
+
+@Suite("Interrupted clean-ups")
+struct InterruptedCleanUpTests {
+
+    @Test("an -original without its take was cut off mid clean-up, so it goes back under the take's name")
+    func restore() {
+        let steps = VoiceCleanUpFiles.interruptedCleanUps(in: ["a-original.mov", "b.mov", "b-original.mov"])
+        #expect(steps == [.restoreOriginal(original: "a-original.mov", take: "a.mov")])
+    }
+
+    @Test("a working file left behind is removed")
+    func working() {
+        let steps = VoiceCleanUpFiles.interruptedCleanUps(in: [".a-cleaning.mov", "a.mov", "a-original.mov", ".DS_Store"])
+        #expect(steps == [.removeWorkingFile(".a-cleaning.mov")])
+    }
+
+    @Test("both at once, in a stable order")
+    func both() {
+        let steps = VoiceCleanUpFiles.interruptedCleanUps(in: ["b-original.mov", ".b-cleaning.mov", "a-original.mov"])
+        #expect(steps == [
+            .removeWorkingFile(".b-cleaning.mov"),
+            .restoreOriginal(original: "a-original.mov", take: "a.mov"),
+            .restoreOriginal(original: "b-original.mov", take: "b.mov")
+        ])
+    }
+
+    @Test("a take name present in other case counts as present")
+    func caseInsensitive() {
+        #expect(VoiceCleanUpFiles.interruptedCleanUps(in: ["A.MOV", "a-original.mov"]).isEmpty)
+    }
+
+    @Test("a folder of plain takes needs nothing")
+    func clean() {
+        #expect(VoiceCleanUpFiles.interruptedCleanUps(in: ["a.mov", "b-vertical.mov", ".DS_Store"]).isEmpty)
+    }
+
+    @Test("original and working names map back to the take's name")
+    func names() {
+        #expect(VoiceCleanUpFiles.takeName(forOriginal: "a-vertical-original.mov") == "a-vertical.mov")
+        #expect(VoiceCleanUpFiles.takeName(forOriginal: "a.mov") == nil)
+        #expect(VoiceCleanUpFiles.workingName(for: "a.mov") == ".a-cleaning.mov")
+        #expect(VoiceCleanUpFiles.isWorkingFile(".a-cleaning.mov"))
+        #expect(!VoiceCleanUpFiles.isWorkingFile("a-cleaning.mov"))
+        #expect(!VoiceCleanUpFiles.isWorkingFile(".a-cropping.mov"))
+    }
+}

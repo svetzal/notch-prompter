@@ -53,8 +53,13 @@ public enum RecordingNaming {
             parts.year ?? 0, parts.month ?? 0, parts.day ?? 0,
             parts.hour ?? 0, parts.minute ?? 0, parts.second ?? 0
         )
-        let suffix = format.fileNameSuffix.map { "-\($0)" } ?? ""
-        return "\(stamp)-\(slug(for: scriptTitle))\(suffix).\(fileExtension)"
+        var base = "\(stamp)-\(slug(for: scriptTitle))" + (format.fileNameSuffix.map { "-\($0)" } ?? "")
+        // A name ending in -original would read as the unprocessed copy of a
+        // cleaned-up take (see VoiceCleanUpFiles), and a launch sweep could rename it.
+        if base.hasSuffix(VoiceCleanUpFiles.originalSuffix) {
+            base += "-take"
+        }
+        return "\(base).\(fileExtension)"
     }
 
     /// `name`, or `name` with `-2`, `-3`… before the extension if it is taken.

@@ -52,6 +52,20 @@ struct RecordingNamingTests {
         )
     }
 
+    @Test("a take's name never ends in -original, so it cannot pass for an unprocessed take")
+    func neverOriginal() throws {
+        let toronto = try #require(TimeZone(identifier: "America/Toronto"))
+        let date = Date(timeIntervalSince1970: 1_791_829_925)
+        #expect(
+            RecordingNaming.fileName(scriptTitle: "The Original", date: date, timeZone: toronto)
+                == "2026-10-12-143205-the-original-take.mov"
+        )
+        #expect(
+            RecordingNaming.fileName(scriptTitle: "The Original", date: date, format: .vertical, timeZone: toronto)
+                == "2026-10-12-143205-the-original-vertical.mov"
+        )
+    }
+
     @Test("a taken name gets a counter before the extension, ignoring case")
     func unique() {
         let existing: Set = ["a.mov", "A-2.MOV"]

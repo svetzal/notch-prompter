@@ -19,6 +19,12 @@ All notable changes to this project are recorded here. The format follows
   runs the last take through the chain again, always from the original, and
   Reveal Both shows both files. Plug-ins run out of process only. If a
   clean-up fails, the recorded take goes back under its name.
+- A clean-up that was cut off (the app quit or crashed, or the power went)
+  is finished at the next launch: an `-original` without its take goes
+  back under the take's name, and leftover working files are removed. The
+  `recording` log says what was done. A take's name never ends in
+  `-original`; a script titled "The Original" records as
+  `...-the-original-take.mov`.
 
 - Microphone mode under the microphone picker. The Mic Mode row shows
   whether the microphone is in Standard, Voice Isolation, or Wide Spectrum

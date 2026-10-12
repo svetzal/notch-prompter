@@ -35,6 +35,7 @@ final class AppModel {
         prompter.recorder = capture
         capture.onRecordingEnded = { [weak prompter] in prompter?.recordingDidEnd() }
         capture.finishTake = { [weak self] take in await self?.cleanUpVoice(of: take) }
+        voice.recoverInterruptedCleanUps(in: RecordingFolder.url)
         Task { await capture.start() }
     }
 
