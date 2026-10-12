@@ -128,15 +128,6 @@ final class CaptureSessionGateway: NSObject, @unchecked Sendable {
         }
     }
 
-    func stop() async {
-        try? await onQueue {
-            self.releaseCameraLock()
-            // Without the lock the format is no longer held; choose it again on the next use.
-            self.appliedVideoFormat = nil
-            self.session.stopRunning()
-        }
-    }
-
     /// Runs `work` on the session queue. Only call from outside that queue.
     func onQueue<T: Sendable>(_ work: @escaping @Sendable () throws -> T) async throws -> T {
         try await withCheckedThrowingContinuation { continuation in
