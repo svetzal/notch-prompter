@@ -97,6 +97,11 @@ final class PrompterController {
 
     var isPrompterVisible: Bool { session.isPrompterVisible }
 
+    /// Where the panel goes on the active display, and how far down its text starts.
+    var placement: PrompterPlacement? {
+        activeDisplay.map { PrompterPlacement(on: $0.geometry, textArea: settings.textAreaSize) }
+    }
+
     // MARK: - Script
 
     func setDocument(_ document: PrompterDocument) {
@@ -214,8 +219,8 @@ final class PrompterController {
     }
 
     private func repositionPanel() {
-        guard session.isPrompterVisible, let panel, let display = activeDisplay else { return }
-        panel.show(in: PrompterPlacement.frame(on: display.geometry, size: settings.panelSize))
+        guard session.isPrompterVisible, let panel, let placement else { return }
+        panel.show(in: placement.frame)
     }
 
     private func screensDidChange() {
@@ -238,7 +243,7 @@ final class PrompterController {
             defaults.set(settings.fontSize, forKey: Keys.fontSize)
             defaults.set(settings.width, forKey: Keys.width)
         }
-        if settings.panelSize != old.panelSize {
+        if settings.textAreaSize != old.textAreaSize {
             defaults.set(settings.visibleLines, forKey: Keys.lines)
             repositionPanel()
         }

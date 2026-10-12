@@ -21,6 +21,9 @@ and the effects facts.
   decisions. `TakeSession` decides; `PrompterController` executes its
   commands. Keep that split.
 - `Apps/Shared/Views` holds SwiftUI. `Apps/macOS` stays thin.
+- The prompter's geometry (frame, top inset, corner radii) is decided by
+  `PrompterPlacement` in the Kit. `NotchShape` and `PrompterView` only draw
+  it. Keep the panel fill pure black, so it merges with the hardware notch.
 - `NotchPrompter.xcodeproj` is **generated**. Never edit it. Change
   `project.yml` and run `xcodegen generate`. `Apps/macOS/Info.plist` is also
   rewritten from `project.yml`, so change plist keys there.
@@ -59,6 +62,6 @@ swift test && swiftlint lint --strict && xcodegen generate && \
 ```
 
 The gates cannot check the parts that need a camera, a microphone, or a
-notched screen: panel placement under the real notch, effects state, and an
-actual recording. After changing those paths, run the app and check them by
+notched screen: the panel flush with the top edge around the real notch,
+effects state, and an actual recording. After changing those paths, run the app and check them by
 hand.

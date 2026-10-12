@@ -37,33 +37,50 @@ public struct DisplayGeometry: Equatable, Sendable {
     }
 }
 
-/// Where the prompter panel goes.
-public enum PrompterPlacement {
+/// Where the prompter panel goes, and how far down its text starts.
+///
+/// The panel grows out of the notch. Its top edge is the screen's top edge,
+/// it is centred on the notch, and it is filled black, so it reads as the
+/// hardware notch getting bigger. At the top it flares into the screen edge
+/// with a concave "ear" on each side, so the frame is one ``earRadius``
+/// wider than the body on each side. The text starts ``topInset`` below the
+/// top edge, just under the camera housing.
+///
+/// On a display without a notch the same shape hangs from the top centre,
+/// over the middle of the menu bar, with a small inset so the text sits as
+/// high as the screen allows.
+public struct PrompterPlacement: Equatable, Sendable {
 
-    /// The panel frame: centred under the notch with its top edge touching
-    /// the notch's bottom, or at the top centre of a display without one.
+    /// The radius of the concave curves where the panel meets the top edge.
+    public static let earRadius: CGFloat = 10
+    /// The radius of the panel's rounded bottom corners.
+    public static let bottomCornerRadius: CGFloat = 20
+    /// Space above the text on a display without a notch.
+    public static let topInsetWithoutNotch: CGFloat = 6
+
+    /// The panel frame, in AppKit screen coordinates.
+    public let frame: CGRect
+    /// How far below the frame's top edge the text area starts: the notch
+    /// height, or ``topInsetWithoutNotch``.
+    public let topInset: CGFloat
+
+    /// Places the panel on `display` around a text area of `textArea` size.
     ///
-    /// Without a notch, the panel covers the middle of the menu bar, which is
-    /// as close to a top-mounted camera as the screen allows. The size shrinks
-    /// to fit the display, keeping `margin` from the side edges.
-    public static func frame(
-        on display: DisplayGeometry,
-        size: CGSize,
-        margin: CGFloat = 8
-    ) -> CGRect {
+    /// The body is never narrower than the notch, so the notch is always
+    /// covered. On a display too small for the panel, the panel shrinks,
+    /// keeping `margin` from the side edges and its top edge at the top.
+    public init(on display: DisplayGeometry, textArea: CGSize, margin: CGFloat = 8) {
         let screen = display.frame
-        let centerX = display.notch?.midX ?? screen.midX
-        let top = display.notch?.minY ?? screen.maxY
-        let width = max(0, min(size.width, screen.width - 2 * margin))
-        let height = max(0, min(size.height, top - screen.minY))
+        let notch = display.notch
+        let topInset = notch?.height ?? Self.topInsetWithoutNotch
+        let bodyWidth = max(textArea.width, notch?.width ?? 0)
+        let width = max(0, min(bodyWidth + 2 * Self.earRadius, screen.width - 2 * margin)).rounded()
+        let height = max(0, min(topInset + textArea.height, screen.height)).rounded()
+        let centerX = notch?.midX ?? screen.midX
         let minX = screen.minX + margin
         let maxX = screen.maxX - margin - width
         let x = min(max(centerX - width / 2, minX), max(minX, maxX))
-        return CGRect(
-            x: x.rounded(),
-            y: (top - height).rounded(),
-            width: width.rounded(),
-            height: height.rounded()
-        )
+        self.frame = CGRect(x: x.rounded(), y: screen.maxY - height, width: width, height: height)
+        self.topInset = topInset
     }
 }

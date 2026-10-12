@@ -19,8 +19,9 @@ public struct PrompterSettings: Equatable, Sendable {
     public static let lineSpacing = 1.3
     /// Space inside the panel, left and right of the text column.
     public static let horizontalPadding = 16.0
-    /// Space inside the panel, above and below the lines.
-    public static let verticalPadding = 8.0
+    /// Space below the last line. The space above comes from the placement's
+    /// top inset, so the reading line sits right under the notch.
+    public static let bottomPadding = 8.0
 
     public var wordsPerMinute: Double { didSet { wordsPerMinute = Self.clamp(wordsPerMinute, to: Self.speedRange) } }
     public var fontSize: Double { didSet { fontSize = Self.clamp(fontSize, to: Self.fontSizeRange) } }
@@ -53,8 +54,10 @@ public struct PrompterSettings: Equatable, Sendable {
         width - 2 * Self.horizontalPadding
     }
 
-    public var panelSize: CGSize {
-        CGSize(width: width, height: Double(visibleLines) * lineHeight + 2 * Self.verticalPadding)
+    /// The lines and the space below them. ``PrompterPlacement`` adds the
+    /// notch above and the ears beside.
+    public var textAreaSize: CGSize {
+        CGSize(width: width, height: Double(visibleLines) * lineHeight + Self.bottomPadding)
     }
 
     public mutating func faster() { wordsPerMinute += Self.speedStep }

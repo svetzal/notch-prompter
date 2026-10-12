@@ -1,12 +1,15 @@
 import NotchPrompterKit
 import SwiftUI
 
-/// The text under the camera.
+/// The prompter: the notch grown downwards, with the script inside it.
 ///
-/// The reading line sits half a line below the top edge, as close to the
-/// lens as the panel allows. The line being read is at full strength and the
-/// rest are dimmed. The view only draws: the position for each frame comes
-/// from the Kit's scroll engine, evaluated at the frame's timestamp.
+/// The panel is pure black and clipped to a ``NotchShape``, so it merges
+/// with the hardware notch in light and dark mode alike. The text starts
+/// just under the camera housing, at the placement's top inset, and the
+/// reading line sits half a line below that, as close to the lens as the
+/// panel allows. The line being read is at full strength and the rest are
+/// dimmed. The view only draws: the position for each frame comes from the
+/// Kit's scroll engine, evaluated at the frame's timestamp.
 struct PrompterView: View {
 
     let controller: PrompterController
@@ -22,30 +25,43 @@ struct PrompterView: View {
         TimelineView(.animation(paused: !isAnimating)) { context in
             frame(at: context.date)
         }
+        // The placement already leaves room for the notch; do not let the
+        // system's safe area push the text down a second time.
+        .ignoresSafeArea()
     }
 
     private func frame(at date: Date) -> some View {
         let session = controller.session
         let settings = controller.settings
+        let topInset = controller.placement?.topInset ?? PrompterPlacement.topInsetWithoutNotch
         return ZStack(alignment: .top) {
-            Color.black
             if let remaining = session.countdownRemaining(at: date) {
                 Text("\(remaining)")
                     .font(.system(size: settings.fontSize * 2, weight: .bold, design: .rounded))
                     .monospacedDigit()
+                    .minimumScaleFactor(0.5)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 PrompterLines(layout: session.scroll.layout, position: session.position(at: date), settings: settings)
-                    .padding(.vertical, PrompterSettings.verticalPadding)
             }
         }
+        .padding(.top, topInset)
+        .padding(.bottom, PrompterSettings.bottomPadding)
+        .padding(.horizontal, PrompterPlacement.earRadius)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(alignment: .bottomTrailing) {
             PrompterStatus(session: session, settings: settings, date: date)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
+                .padding(.trailing, PrompterPlacement.earRadius + PrompterPlacement.bottomCornerRadius / 2)
+                .padding(.bottom, 4)
         }
-        .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 18, bottomTrailingRadius: 18))
+        .background(Color.black)
+        .clipShape(
+            NotchShape(
+                topCornerRadius: PrompterPlacement.earRadius,
+                bottomCornerRadius: PrompterPlacement.bottomCornerRadius
+            )
+        )
     }
 }
 

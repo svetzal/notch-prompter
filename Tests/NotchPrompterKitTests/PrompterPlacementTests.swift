@@ -25,21 +25,38 @@ struct PrompterPlacementTests {
         #expect(notch.midX == 755.5)
     }
 
-    @Test("sits directly under the notch, centred on it")
-    func underNotch() {
-        let frame = PrompterPlacement.frame(on: macBook, size: CGSize(width: 460, height: 164))
-        #expect(frame == CGRect(x: 526, y: 786, width: 460, height: 164))
+    @Test("grows out of the notch: top edge at the screen's top, centred on the notch")
+    func envelopsNotch() {
+        let placement = PrompterPlacement(on: macBook, textArea: CGSize(width: 460, height: 164))
+        #expect(placement.topInset == 32)
+        #expect(placement.frame == CGRect(x: 516, y: 786, width: 480, height: 196))
+        #expect(placement.frame.maxY == macBook.frame.maxY)
     }
 
-    @Test("a display without a notch gets the top centre")
+    @Test("the frame is wider than the text area by an ear on each side")
+    func ears() {
+        let placement = PrompterPlacement(on: macBook, textArea: CGSize(width: 460, height: 164))
+        #expect(placement.frame.width == 460 + 2 * PrompterPlacement.earRadius)
+    }
+
+    @Test("the body is never narrower than the notch it covers")
+    func bodyCoversNotch() {
+        let placement = PrompterPlacement(on: macBook, textArea: CGSize(width: 100, height: 50))
+        #expect(placement.frame.width == 185 + 2 * PrompterPlacement.earRadius)
+        #expect(placement.frame.height == 82)
+    }
+
+    @Test("a display without a notch hangs from the top centre with a small inset")
     func noNotch() {
         let display = DisplayGeometry(
             frame: CGRect(x: 0, y: 0, width: 2560, height: 1440),
             safeAreaTop: 0, auxiliaryTopLeft: .zero, auxiliaryTopRight: .zero
         )
         #expect(display.notch == nil)
-        let frame = PrompterPlacement.frame(on: display, size: CGSize(width: 400, height: 100))
-        #expect(frame == CGRect(x: 1080, y: 1340, width: 400, height: 100))
+        let placement = PrompterPlacement(on: display, textArea: CGSize(width: 400, height: 100))
+        #expect(placement.topInset == PrompterPlacement.topInsetWithoutNotch)
+        #expect(placement.frame == CGRect(x: 1070, y: 1334, width: 420, height: 106))
+        #expect(placement.frame.maxY == display.frame.maxY)
     }
 
     @Test("uses the display's own origin in a multi-display arrangement")
@@ -48,18 +65,32 @@ struct PrompterPlacementTests {
             frame: CGRect(x: -1920, y: 200, width: 1920, height: 1080),
             safeAreaTop: 0, auxiliaryTopLeft: .zero, auxiliaryTopRight: .zero
         )
-        let frame = PrompterPlacement.frame(on: display, size: CGSize(width: 400, height: 100))
-        #expect(frame == CGRect(x: -1160, y: 1180, width: 400, height: 100))
+        let placement = PrompterPlacement(on: display, textArea: CGSize(width: 400, height: 100))
+        #expect(placement.frame == CGRect(x: -1170, y: 1174, width: 420, height: 106))
     }
 
-    @Test("shrinks to fit a narrow display, keeping the margin")
+    @Test("shrinks to fit a narrow display, keeping the side margin and the top edge")
     func narrowDisplay() {
         let display = DisplayGeometry(
             frame: CGRect(x: 0, y: 0, width: 300, height: 200),
             safeAreaTop: 0, auxiliaryTopLeft: .zero, auxiliaryTopRight: .zero
         )
-        let frame = PrompterPlacement.frame(on: display, size: CGSize(width: 500, height: 500), margin: 10)
-        #expect(frame == CGRect(x: 10, y: 0, width: 280, height: 200))
+        let placement = PrompterPlacement(on: display, textArea: CGSize(width: 500, height: 500), margin: 10)
+        #expect(placement.frame == CGRect(x: 10, y: 0, width: 280, height: 200))
+        #expect(placement.frame.maxY == display.frame.maxY)
+    }
+
+    @Test("a notch near the side is followed only as far as the margin allows")
+    func centringClamp() {
+        let display = DisplayGeometry(
+            frame: CGRect(x: 0, y: 0, width: 1000, height: 700),
+            safeAreaTop: 30,
+            auxiliaryTopLeft: CGRect(x: 0, y: 670, width: 100, height: 30),
+            auxiliaryTopRight: CGRect(x: 200, y: 670, width: 800, height: 30)
+        )
+        let placement = PrompterPlacement(on: display, textArea: CGSize(width: 460, height: 100))
+        #expect(placement.frame == CGRect(x: 8, y: 570, width: 480, height: 130))
+        #expect(placement.topInset == 30)
     }
 
     @Test("a safe area without auxiliary areas is not a notch")
@@ -75,12 +106,12 @@ struct PrompterPlacementTests {
 @Suite("Prompter settings")
 struct PrompterSettingsTests {
 
-    @Test("derives line height, text width, and panel size")
+    @Test("derives line height, text width, and text area size")
     func metrics() {
         let settings = PrompterSettings(fontSize: 30, width: 460, visibleLines: 4)
         #expect(settings.lineHeight == 39)
         #expect(settings.textWidth == 428)
-        #expect(settings.panelSize == CGSize(width: 460, height: 172))
+        #expect(settings.textAreaSize == CGSize(width: 460, height: 164))
     }
 
     @Test("clamps on creation and on every change")

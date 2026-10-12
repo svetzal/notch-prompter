@@ -105,14 +105,24 @@ positive number holds for the default 2 seconds.
 
 ### Placement
 
-`PrompterPlacement` places the panel from `NSScreen` facts alone:
+The prompter grows out of the notch. `PrompterPlacement` places it from
+`NSScreen` facts alone:
 
+- The panel's top edge is the screen's top edge. It is filled pure black
+  and clipped to a notch shape: concave curves where it meets the top edge,
+  and rounded bottom corners. Because the hardware notch is black too, the
+  panel reads as the notch getting bigger, in light and dark mode.
 - On a display with a notch, the notch is the gap between
   `auxiliaryTopLeftArea` and `auxiliaryTopRightArea`, and its height is
-  `safeAreaInsets.top`. The panel's top edge touches the bottom of the notch,
-  centred on the notch.
-- On a display without a notch, the panel goes at the top centre, over the
-  middle of the menu bar.
+  `safeAreaInsets.top`. The panel is centred on the notch and is never
+  narrower than it. The text starts at the notch's bottom edge, so the
+  reading line sits just under the camera.
+- On a display without a notch, the same shape hangs from the top centre,
+  over the middle of the menu bar. The text starts 6 points below the top
+  edge.
+
+The panel floats above the menu bar and its status items, on every Space and
+over full-screen apps. It never takes focus, and clicks pass through it.
 
 The prompter uses the display chosen in the window. If that display is not
 connected, it uses one with a notch, then the first display.

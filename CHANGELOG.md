@@ -5,6 +5,16 @@ All notable changes to this project are recorded here. The format follows
 
 ## Unreleased
 
+### Changed
+
+- The prompter grows out of the notch instead of hanging below it. The panel
+  starts at the screen's top edge, is pure black, and has the notch's
+  outline, with concave curves into the top edge and rounded bottom
+  corners. The text starts just under the camera housing. Without a notch,
+  the same shape hangs from the top centre of the display.
+- The prompter panel sits one level higher, above the menu bar's status
+  items.
+
 ### Added
 
 - Script library: Markdown scripts in `~/Documents/Notch Prompter/Scripts`,
