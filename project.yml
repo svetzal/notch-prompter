@@ -1,0 +1,54 @@
+name: NotchPrompter
+options:
+  bundleIdPrefix: com.mojility
+  deploymentTarget:
+    macOS: "15.0"
+  generateEmptyDirectories: true
+packages:
+  NotchPrompterKit:
+    path: .
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGNING_ALLOWED: NO
+    DEAD_CODE_STRIPPING: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
+    STRING_CATALOG_GENERATE_SYMBOLS: YES
+targets:
+  NotchPrompterMac:
+    type: application
+    platform: macOS
+    sources:
+      - Apps/Shared
+      - Apps/macOS
+    dependencies:
+      - package: NotchPrompterKit
+    info:
+      path: Apps/macOS/Info.plist
+      properties:
+        NSHumanReadableCopyright: "Copyright (c) 2026 Stacey Vetzal"
+        LSApplicationCategoryType: public.app-category.video
+        NSCameraUsageDescription: Notch Prompter shows and records your camera while you read your script.
+        NSMicrophoneUsageDescription: Notch Prompter records your voice with each take.
+        NSDocumentsFolderUsageDescription: Notch Prompter keeps your scripts in Documents/Notch Prompter/Scripts.
+        NSCameraUseContinuityCameraDeviceType: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mojility.notch-prompter.macos
+        PRODUCT_NAME: Notch Prompter
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGNING_ALLOWED: YES
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: K2Q2GNUPH8
+        CODE_SIGN_ENTITLEMENTS: Apps/macOS/NotchPrompter.entitlements
+schemes:
+  NotchPrompterMac:
+    build:
+      targets:
+        NotchPrompterMac: all
+    run:
+      config: Debug

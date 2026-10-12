@@ -1,0 +1,22 @@
+{
+  "gates": [
+    {
+      "name": "test",
+      "command": "swift test",
+      "required": true,
+      "timeout": 600
+    },
+    {
+      "name": "lint",
+      "command": "swiftlint lint --strict",
+      "required": true,
+      "timeout": 300
+    },
+    {
+      "name": "build",
+      "command": "xcodegen generate && xcodebuild -project NotchPrompter.xcodeproj -scheme NotchPrompterMac -configuration Debug -destination 'platform=macOS' build",
+      "required": true,
+      "timeout": 1200
+    }
+  ]
+}
