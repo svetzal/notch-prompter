@@ -146,7 +146,12 @@ final class PrompterController {
         perform(session.stop(at: .now))
     }
 
-    /// The recorder reports that the movie file closed, for any reason.
+    /// The saved take's voice clean-up has started.
+    func voiceCleanUpDidStart() {
+        session.voiceCleanUpDidStart()
+    }
+
+    /// The recorder reports that the take is over, for any reason.
     func recordingDidEnd() {
         session.recordingDidEnd(at: .now)
     }

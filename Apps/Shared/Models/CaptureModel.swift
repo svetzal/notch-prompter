@@ -26,8 +26,13 @@ final class CaptureModel {
     private(set) var lastRecording: URL?
     var errorMessage: String?
 
-    /// Called when a take's movie file closes, whether it worked or not.
+    /// Called when a take is over, whether it worked or not: its movie file
+    /// has closed, and any work in ``finishTake`` is done.
     @ObservationIgnored var onRecordingEnded: (@MainActor () -> Void)?
+
+    /// Runs on a saved take once it has its shape, before it is shown. The
+    /// take stays finishing until this returns. The voice clean-up runs here.
+    @ObservationIgnored var finishTake: (@MainActor (URL) async -> Void)?
 
     /// The camera chosen in the window, remembered while it is disconnected.
     var preferredCameraID: String? {
@@ -262,8 +267,9 @@ final class CaptureModel {
 
     // MARK: - Recording
 
-    /// Checks the finished take's shape before showing it. The take stays
-    /// "Saving" until the check, and any re-crop, is done.
+    /// Checks the finished take's shape, then hands it to ``finishTake``,
+    /// before showing it. The take stays "Saving" until the check, and any
+    /// re-crop, is done. The camera is free again once the video is final.
     private func recordingFinished(_ outcome: RecordingOutcome) async {
         if let failure = outcome.failure {
             errorMessage = "The take did not finish recording: \(failure)"
@@ -275,6 +281,8 @@ final class CaptureModel {
                 errorMessage = "The take was saved, but could not be made \(recordingFormat.displayName.lowercased()): "
                     + error.localizedDescription
             }
+            releaseDevices()
+            await finishTake?(outcome.url)
             lastRecording = outcome.url
             NSWorkspace.shared.activateFileViewerSelecting([outcome.url])
         }
@@ -302,9 +310,16 @@ final class CaptureModel {
     }
 
     private func endRecording() {
-        wantsRecording = false
-        isConfigurationLocked = false
+        releaseDevices()
         onRecordingEnded?()
+    }
+
+    /// Lets device and format changes through again.
+    private func releaseDevices() {
+        wantsRecording = false
+        if isConfigurationLocked {
+            isConfigurationLocked = false
+        }
     }
 }
 
