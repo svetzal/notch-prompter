@@ -213,18 +213,17 @@ final class CaptureModel {
         }
         if formatSwitch.isNative {
             Logger.recording.notice("""
-                Camera switched from the session preset's \(formatSwitch.presetSize, privacy: .public) \
+                Camera switched from \(formatSwitch.presetSize, privacy: .public) \
                 to its native \(formatSwitch.size, privacy: .public) format for \(format, privacy: .public) takes
                 """)
-        } else if formatSwitch.videoFormat == .vertical {
-            Logger.recording.notice("""
-                Camera has no native vertical format; it uses the session preset's \
-                \(formatSwitch.size, privacy: .public) and each vertical take is cropped
-                """)
         } else {
-            Logger.recording.notice(
-                "Camera uses the session preset's \(formatSwitch.size, privacy: .public) for \(format, privacy: .public) takes"
-            )
+            // The size here may still be the old format: the preset moves the
+            // camera after the lock is released. The take-start line logs the
+            // size each take actually used.
+            Logger.recording.notice("""
+                Camera has no native \(format, privacy: .public) format; the session preset chooses one \
+                and each \(format, privacy: .public) take is cropped
+                """)
         }
     }
 
