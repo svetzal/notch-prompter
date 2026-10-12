@@ -156,6 +156,52 @@ struct TakeSessionTests {
     }
 }
 
+@Suite("Take status")
+struct TakeStatusTests {
+
+    @Test("hidden and ready both read as ready, and a take can start")
+    func ready() {
+        var session = makeSession()
+        #expect(session.status(at: at(0)) == .ready)
+        #expect(!session.isRunning)
+        _ = session.showPrompter()
+        #expect(session.status(at: at(0)) == .ready)
+        #expect(!session.isRunning)
+    }
+
+    @Test("the countdown shows whole seconds left and which kind of run follows")
+    func countdown() {
+        var session = makeSession()
+        _ = session.begin(.recording, at: at(0))
+        #expect(session.status(at: at(0.5)) == .countingDown(.recording, remaining: 3))
+        #expect(session.status(at: at(2.5)) == .countingDown(.recording, remaining: 1))
+        #expect(session.isRunning)
+    }
+
+    @Test("a rehearsal says whether its scroll is paused")
+    func rehearsing() {
+        var session = makeSession(countdown: 0)
+        _ = session.begin(.rehearsal, at: at(0))
+        #expect(session.status(at: at(1)) == .rehearsing(isPaused: false))
+        _ = session.togglePlayback(at: at(1))
+        #expect(session.status(at: at(2)) == .rehearsing(isPaused: true))
+        #expect(session.isRunning)
+    }
+
+    @Test("a recording shows its elapsed time, then saving while the file closes")
+    func recording() {
+        var session = makeSession(countdown: 0)
+        _ = session.begin(.recording, at: at(0))
+        #expect(session.status(at: at(65)) == .recording(elapsed: 65))
+        _ = session.stop(at: at(70))
+        #expect(session.status(at: at(71)) == .saving)
+        #expect(session.isRunning)
+        session.recordingDidEnd(at: at(72))
+        #expect(session.status(at: at(72)) == .ready)
+        #expect(!session.isRunning)
+    }
+}
+
 @Suite("Prompter keys")
 struct PrompterKeyCommandTests {
 

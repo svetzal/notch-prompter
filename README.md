@@ -43,12 +43,32 @@ scheme.
 1. Pick or write a script in the left column. Scripts autosave a second after
    you stop typing, and on ⌘S.
 2. Check the camera, microphone, and effects in the right column.
-3. Press ⌘R (Record Take). After the countdown, the prompter scrolls and the
-   recording runs. Press Esc to stop both. Finder shows the new movie.
+3. Click Record in the toolbar, or press ⌘R. After the countdown, the
+   prompter scrolls and the recording runs. Click Stop or press Esc to stop
+   both. Finder shows the new movie.
 
 Rehearse (⇧⌘R, or Space while the prompter shows) runs the prompter without
-recording. Show Prompter (⇧⌘P) puts the panel up without starting it, so you
-can park it at a paragraph before a take.
+recording. The Prompter toggle (⇧⌘P) puts the panel up without starting it,
+so you can park it at a paragraph before a take.
+
+### The toolbar
+
+The run controls are in the main window's toolbar. To rearrange them,
+Control-click the toolbar, or choose View > Customize Toolbar.
+
+| Where | Control |
+| --- | --- |
+| Left | Prompter (show or hide it), Rehearse |
+| Centre | Take status: Ready, the countdown, Rehearsing, or a red dot with the recording time. Saving… while the movie file closes. |
+| Right | Speed (− / wpm / +), Prompter Settings, Video Effects, Record |
+
+Prompter Settings holds the text size, the number of lines, the width, the
+countdown, the display, and the keys reference. Video Effects opens the
+system Video Effects panel. Record becomes Stop while a countdown, a run, or
+saving is under way. Each control's tooltip names its keyboard shortcut.
+
+The right column keeps the camera preview, the camera and microphone
+pickers, the effects state, and a link to the last take.
 
 ### Keys while the prompter shows
 
@@ -158,7 +178,7 @@ read from `AVCaptureDevice.h` in the macOS 27 SDK:
   `backgroundReplacementEnabled` are read-only class properties. Only the
   user can change them, in Control Center.
 - `showSystemUserInterface(.videoEffects)` opens the system Video Effects
-  panel. "Open Video Effects…" calls it.
+  panel. Video Effects in the toolbar calls it.
 
 The window shows each effect's live state from key-value observation of the
 device (`isPortraitEffectActive`, `isStudioLightActive`,

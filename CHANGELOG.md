@@ -14,6 +14,12 @@ All notable changes to this project are recorded here. The format follows
   the same shape hangs from the top centre of the display.
 - The prompter panel sits one level higher, above the menu bar's status
   items.
+- The run controls moved from the session column to a customizable toolbar:
+  the Prompter toggle and Rehearse on the left, the take status in the
+  centre, and speed, Prompter Settings, Video Effects, and Record (Stop
+  during a run) on the right. Tooltips name the keyboard shortcuts. The
+  session column keeps the camera, the effects state, and the last take.
+- The main window is at least 1000 points wide, so the toolbar fits.
 
 ### Added
 

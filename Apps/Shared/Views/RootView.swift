@@ -1,7 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// The main window: scripts on the left, the script and the session on the right.
+/// The main window: scripts on the left, the script and the session on the
+/// right, and the take controls in the toolbar.
 struct RootView: View {
 
     @Bindable var model: AppModel
@@ -19,6 +20,9 @@ struct RootView: View {
                     .frame(width: 340)
             }
             .navigationTitle(model.library.selectedTitle ?? "Notch Prompter")
+        }
+        .toolbar(id: "main") {
+            MainToolbar(model: model)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             model.capture.recheckAccess()

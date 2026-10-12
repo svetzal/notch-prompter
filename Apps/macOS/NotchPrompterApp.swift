@@ -8,7 +8,7 @@ struct NotchPrompterApp: App {
     var body: some Scene {
         Window("Notch Prompter", id: "main") {
             RootView(model: model)
-                .frame(minWidth: 900, minHeight: 560)
+                .frame(minWidth: 1000, minHeight: 560)
         }
         .commands {
             CommandGroup(replacing: .newItem) {
@@ -23,16 +23,16 @@ struct NotchPrompterApp: App {
                 Button(model.prompter.isPrompterVisible ? "Hide Prompter" : "Show Prompter") {
                     model.prompter.togglePrompter()
                 }
-                .keyboardShortcut("p", modifiers: [.command, .shift])
+                .keyboardShortcut(Shortcuts.togglePrompter)
                 .disabled(!(model.prompter.session.phase == .hidden || model.prompter.session.phase == .ready))
                 Button("Record Take") { model.prompter.record() }
-                    .keyboardShortcut("r", modifiers: .command)
-                    .disabled(!model.prompter.session.canBegin || !model.capture.access.canUseCamera)
+                    .keyboardShortcut(Shortcuts.record)
+                    .disabled(!model.canRecord)
                 Button("Rehearse") { model.prompter.rehearse() }
-                    .keyboardShortcut("r", modifiers: [.command, .shift])
+                    .keyboardShortcut(Shortcuts.rehearse)
                     .disabled(!model.prompter.session.canBegin)
                 Button("Stop") { model.prompter.stop() }
-                    .keyboardShortcut(".", modifiers: .command)
+                    .keyboardShortcut(Shortcuts.stop)
                     .disabled(!model.prompter.isPrompterVisible)
             }
         }

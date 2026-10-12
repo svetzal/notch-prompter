@@ -21,6 +21,11 @@ and the effects facts.
   decisions. `TakeSession` decides; `PrompterController` executes its
   commands. Keep that split.
 - `Apps/Shared/Views` holds SwiftUI. `Apps/macOS` stays thin.
+- The take controls are in the main window's toolbar (`MainToolbar`). The
+  session column holds the camera, effects state, and last take only; do not
+  add run controls back to it. The Prompter menu and the toolbar tooltips
+  share their shortcuts through `Shortcuts`, and the toolbar's status comes
+  from `TakeSession.status(at:)` in the Kit.
 - The prompter's geometry (frame, top inset, corner radii) is decided by
   `PrompterPlacement` in the Kit. `NotchShape` and `PrompterView` only draw
   it. Keep the panel fill pure black, so it merges with the hardware notch.

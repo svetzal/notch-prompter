@@ -34,6 +34,11 @@ final class AppModel {
         Task { await capture.start() }
     }
 
+    /// Whether a recorded take can start now: nothing running, and the camera allowed.
+    var canRecord: Bool {
+        prompter.session.canBegin && capture.access.canUseCamera
+    }
+
     /// The first error any model is holding, for the window's alert.
     var errorMessage: String? {
         library.errorMessage ?? capture.errorMessage

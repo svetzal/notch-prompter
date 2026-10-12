@@ -14,13 +14,12 @@ struct EffectsSection: View {
                 }
             }
             reactions
-            Button("Open Video Effects…") { capture.showVideoEffectsPanel() }
         } header: {
             Text("Video effects")
         } footer: {
             Text(
-                "Portrait, Studio Light, and Background can only be changed in the Video Effects panel. "
-                    + "Recordings include every effect."
+                "Portrait, Studio Light, and Background can only be changed in the Video Effects panel, "
+                    + "which Video Effects in the toolbar opens. Recordings include every effect."
             )
                 .font(.caption)
                 .foregroundStyle(.secondary)
